@@ -170,7 +170,7 @@ const ChartWorkbench = (() => {
         const panes=[]; if(config.volume) panes.push('Volume'); if(config.rsi) panes.push('RSI'); if(config.macd) panes.push('MACD');
         const bottom=panes.length * 0.16;
         const axis={showgrid:config.grid,gridcolor:grid,zeroline:false,showspikes:config.crosshair,spikemode:'across',spikesnap:'cursor',spikecolor:text};
-        const layout={paper_bgcolor:bg,plot_bgcolor:bg,font:{color:text,size:config.fontSize},autosize:true,height:document.fullscreenElement===state.workspace || state.workspace.classList.contains('chart-overlay')?Math.max(350,window.innerHeight-200):config.height,
+        const layout={paper_bgcolor:bg,plot_bgcolor:bg,font:{color:text,size:config.fontSize},autosize:true,height:document.fullscreenElement===state.workspace || state.workspace.classList.contains('chart-overlay')?Math.max(config.height,window.innerHeight-200):config.height,
             margin:{l:70,r:30,t:20,b:100},showlegend:config.legend,legend:{orientation:'h',x:0,y:-0.12,bgcolor:bg,font:{color:text}},
             hovermode:'x',dragmode:'pan',uirevision:state.id + (state.result?.feed ? `${state.result.feed.ticker}-${state.result.feed.interval_minutes}` : ''), xaxis:{...axis,type:config.gaps?'date':'category',categoryorder:'array',categoryarray:[...new Set(x)],rangeslider:{visible:config.rangeSlider},anchor:'free',position:0},
             yaxis:{...axis,title:'Price',type:config.log?'log':'linear',domain:[bottom,1],fixedrange:false}};
@@ -183,7 +183,7 @@ const ChartWorkbench = (() => {
         }
         panes.forEach((pane,i)=>{
             const n=i+2, key=`yaxis${n}`, axisName=`y${n}`, lower=bottom-(i+1)*0.16;
-            layout[key]={...axis,title:pane,domain:[lower+0.025,lower+0.15],anchor:'x',fixedrange:false};
+            layout[key]={...axis,title:{text:pane,font:{size:Math.min(11,config.fontSize)},standoff:4},domain:[lower+0.025,lower+0.15],anchor:'x',fixedrange:false};
             if (pane==='Volume') {
                 for(const group of groups.filter(g=>g.kind!=='actual' && config[g.kind])) traces.push({type:'bar',x:group.bars.map(b=>b.timestamp),y:group.bars.map(b=>b.volume ?? null),name:group.kind==='forecast'?'Forecast volume':'Observed volume',yaxis:axisName,marker:{color:group.kind==='forecast'?config.forecastUp:config.up},opacity:0.5});
             }
