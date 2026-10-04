@@ -28,12 +28,23 @@ def configure_local_models():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=7070)
+    parser.add_argument("--require-auth", action="store_true", help="Require private access token; use behind an HTTPS proxy.")
+    parser.add_argument("--production", action="store_true", help="Use the optional Waitress server (macOS requirements include it).")
     args = parser.parse_args()
     configure_local_models()
     from webui.polygon_feed import register_live_feed
     register_live_feed(ui.app, ui)
+    if args.require_auth:
+        from dotenv import load_dotenv
+        from webui.access import configure_access
+        load_dotenv(ROOT / '.env', override=False)
+        configure_access(ui.app, os.environ.get('KRONOS_ACCESS_TOKEN', ''))
     print(f"Open http://127.0.0.1:{args.port}; Ctrl+C stops the server.", flush=True)
-    ui.app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)
+    if args.production:
+        from waitress import serve
+        serve(ui.app, host='127.0.0.1', port=args.port, threads=4)
+    else:
+        ui.app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)
 
 
 if __name__ == "__main__":

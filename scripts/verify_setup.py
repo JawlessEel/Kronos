@@ -19,7 +19,7 @@ def main():
     configure_local_models()
     torch.manual_seed(123)
     np.random.seed(123)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     client = ui.app.test_client()
     sample = ROOT / "data" / "HK_ali_09988_kline_5min_all.csv"
     assert client.get("/").status_code == 200
