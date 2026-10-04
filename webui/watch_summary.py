@@ -40,6 +40,9 @@ def summarize(result, ticker, interval, now):
                   market_close=closing.isoformat() if closing is not None else None, generated_at=None,
                   expires_at=None, predicted_high=None, predicted_low=None, high_time=None, low_time=None,
                   observed=[], predicted=[], quality_count=0, interval_minutes=interval)
+    if ticker.startswith('X:') or interval not in (1,5,15):
+        output.update(status='unavailable', reason='Watch through-close targets currently support US stocks at 1m, 5m or 15m. Crypto and longer timeframes are available in the web UI.')
+        return output
     if opening is None or now >= closing or now < opening:
         output.update(status='closed', reason='No current-day regular-session target is available.')
         return output
@@ -99,7 +102,7 @@ def register_watch_summary(app, directory):
         except FeedError as error:
             return jsonify(error=str(error)), error.status
         result = None
-        files = sorted(Path(directory).glob(f'{ticker}_{interval}min_*.json'), reverse=True)
+        files = sorted(Path(directory).glob(f"{ticker.replace(':', '-')}_{interval}min_*.json"), reverse=True)
         for file in files[:10]:
             try:
                 if file.stat().st_size > 10_000_000:

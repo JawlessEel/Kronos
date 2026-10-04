@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
             for(const snapshot of PredictionCandles.snapshots()) {
                 let page=null,y=0;
                 const widths=[25,115,55,55,55,55,55,45,65,80,95,65];
-                const headings=['#',snapshot.live?'Candle start ET':'Source time','Open','High','Low','Close','Change','Change %','Move/body','Volume','Turnover','Quality'];
+                const headings=['#',snapshot.live?`Candle start ${snapshot.zoneLabel||'ET'}`:'Source time','Open','High','Low','Close','Change','Change %','Move/body','Volume','Turnover','Quality'];
                 const ascii=text=>String(text).replace(/[^\x20-\x7e]/g,'-');
                 const drawRow=(values,header=false)=>{
                     let x=margin;

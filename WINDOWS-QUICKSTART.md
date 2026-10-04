@@ -224,7 +224,7 @@ explicit error rather than exhausting browser memory.
 After a live or historical forecast, the chart is followed by **predicted candles**.
 Every model output row is available in a scrollable table, with candle-start date
 and time, open/high/low/close, close change, close-change percent, movement/body,
-volume and turnover. Live timestamps use New York ET (EDT/EST); historical CSV
+volume and turnover. Stock timestamps use New York ET (EDT/EST); crypto uses UTC; historical CSV
 rows retain source timestamps. Movement compares close with the preceding close;
 body compares close with this candle's open. The first row uses the observed
 anchor close. The summary shows first/last time and final change from the anchor.
@@ -243,6 +243,20 @@ Additional check: `node tests/test_prediction_candles.cjs`.
 The Quality column flags impossible OHLC ranges and negative volume/turnover.
 Kronos predicts channels independently and can produce inconsistent candle bounds;
 raw outputs are retained in the UI, CSV and PDF rather than silently repaired.
+
+## Crypto and larger timeframes
+
+In Polygon market data, choose **1 hour**, **4 hours**, or **1 day**, alongside the existing 1/5/15-minute options. Enter a stock/ETF symbol or a USD crypto pair such as **X:BTCUSD**, **X:ETHUSD**, **X:SOLUSD** or **X:DOGEUSD**. Suggestions and Bitcoin hourly/4-hour and Ethereum daily presets are included. Pair availability and historical access depend on your existing Polygon subscription; denied access is reported, without substituting another provider.
+
+Crypto uses completed UTC bars and continuous 24/7 forecast timestamps, including weekends. Stock 1h/4h bars aggregate complete provider 30-minute candles from the regular session starting at 09:30 ET; the last bar ends at actual session close and can be shorter, including early closes. Missing constituent bars are not filled. Stock daily bars use the provider's ET daily aggregates, including eligible extended-hours trades, and enter the model only after that calendar day has ended. Future stock daily bars skip exchange holidays and weekends.
+
+Lookback, chart history and forecast length count candles: 24 hourly crypto predictions cover 24 hours; 30 daily crypto predictions cover 30 days. Charts, prediction tables and PDF timestamps label UTC for crypto and ET for stocks; CSV retains exact ISO timestamps. Longer history is requested proportionally within a bounded 30-year/date and 12-page budget, subject to entitlement and available history. Reduce history when the provider has too few bars.
+
+The first Watch complication's through-close target remains US stocks at 1m/5m/15m. Crypto and longer timeframes use candle-count forecasts in the web UI; they do not advertise a stock-market close target on the Watch.
+
+Provider conventions: [crypto aggregates](https://massive.com/docs/rest/crypto/aggregates/custom-bars), [stock aggregates](https://massive.com/docs/rest/stocks/aggregates/custom-bars).
+
+Validation: `python -m pytest tests -q`, `node tests/test_prediction_candles.cjs`, `node tests/test_presets.cjs`. Real Polygon BTC and SPY 400-bar fetches were verified for all three new timeframes; a 24-bar base-model CUDA BTC hourly forecast was verified. Native Apple builds remain gated on Xcode availability.
 
 ## Named presets and Apple clients
 

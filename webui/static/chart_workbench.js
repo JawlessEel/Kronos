@@ -180,10 +180,10 @@ const ChartWorkbench = (() => {
         if (!config.gaps && x.length) {
             const unique=[...new Set(x)], count=mobile?3:8;
             layout.xaxis.tickvals=[...new Set(Array.from({length:Math.min(count,unique.length)},(_,i)=>unique[Math.round(i*(unique.length-1)/Math.max(1,Math.min(count,unique.length)-1))]))];
-            const zone=state.result?.feed?'America/New_York':undefined;
+            const zone=state.result?.feed?(state.result.feed.timezone||'America/New_York'):undefined;
             layout.xaxis.ticktext=layout.xaxis.tickvals.map(stamp=>mobile?new Date(stamp).toLocaleDateString(undefined,{timeZone:zone,month:'short',day:'numeric'})+'<br>'+new Date(stamp).toLocaleTimeString(undefined,{timeZone:zone,hour:'2-digit',minute:'2-digit'}):new Date(stamp).toLocaleString(undefined,{timeZone:zone,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
             layout.xaxis.tickangle=0;
-            layout.xaxis.title=mobile?'':state.result?.feed?'Candle start (ET)':'Candle start (source)';
+            layout.xaxis.title=mobile?'':state.result?.feed?`Candle start (${zone==='UTC'?'UTC':'ET'})`:'Candle start (source)';
         }
         panes.forEach((pane,i)=>{
             const n=i+2, key=`yaxis${n}`, axisName=`y${n}`, lower=bottom-(i+1)*0.16;
