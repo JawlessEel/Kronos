@@ -11,6 +11,14 @@ Chrome-only Manifest V3 extension and Pine v6 overlay, shared by Windows and mac
 
 Chrome stores unpacked extension registration per profile on each computer. Keep the extracted folder in a stable location. Installing on ASUS does not install it on the Mac; no remote Mac extension installation is claimed.
 
+## Include downloads inside a Perchance generator
+
+Run `python browser/chrome-bridge/build-perchance-downloads.py --output build/perchance-downloads` from the repository root. Append the entire generated `Perchance-TradingView-Downloads-Panel.html` to the generator's HTML panel, after its existing code. Do not replace the lists panel or existing HTML. Back up both panels first, preview the download buttons, then save. Append once; to update, replace only the previous download panel block.
+
+The panel embeds a ZIP of the actual extension, Pine source, and setup guide. Downloads use local Blob URLs: no upload service, CORS fetch, desktop launcher, or Python installation is needed by visitors. It offers indicator download/copy, selectable source when clipboard permissions are blocked, and a public release fallback if iframe downloads are blocked. Downloaded ZIP users select the `extension` folder after extraction. This is an unpacked desktop Chrome extension, not a Chrome Web Store installation; Chrome on iPhone cannot install it.
+
+The panel only supplies installation files. The generator must also retain its existing Kronos runtime and **TradingView · Chrome bridge** controls. Adding this panel does not publish the generator or modify its source modules.
+
 ## Transfer a real forecast
 
 1. Fetch completed candles, load Kronos-mini, and generate a forecast.
@@ -27,11 +35,11 @@ To remove repeated transfer clicks, enable **Send each newly generated forecast*
 - Only real Kronos forecasts are accepted, capped at 120 rows. Statistical fallback results, stale selections, expired horizons, invalid timestamps, and nonfinite/missing prices are rejected. OHLC inconsistency flags are preserved: flagged candle bodies/wicks are omitted, close paths retained, and the table warns. High/low summaries use unflagged candles only.
 - The bridge does not authenticate or certify the source website's forecast. Run your trusted local checkout or reviewed generator. Exchange symbol matching cannot verify provider corporate-action adjustments or identical daily session boundaries. Stock 4h/daily candles can align differently between vendors; compare source session and candle timestamps before relying on an overlay.
 - TradingView settings automation is an interface adapter, not an official inbound prediction API. Changes to their UI can break it. If the extension cannot safely identify one dedicated indicator/dialog/textarea/OK button, it stops with a useful message. Open the indicator's **Inputs** settings manually and retry; **Copy TradingView data** is a fallback.
-- The runtime and popup do not load remotely hosted extension code. Public Perchance delivery needs the new `tradingview-contract.js` and `tradingview-bridge.js` scripts hosted alongside the existing workbench assets; this change does not publish the generator.
+- The runtime and popup do not load remotely hosted extension code. Public Perchance delivery must retain `tradingview-contract.js` and `tradingview-bridge.js`, either bundled in its HTML or hosted alongside its workbench assets. The download panel does not publish the generator.
 
 ## Development and checks
 
-Verified on ASUS Chrome on 2026-10-04: the Pine script compiled and was saved privately; a real 32-lookback/24-horizon WebGPU forecast from completed OKX candles exported successfully; the settings adapter opened the dedicated indicator, filled its payload, and submitted it on the actual TradingView site. The overlay displayed future candles, a close path, high/low labels, and an explicit mismatch on a Coinbase BTCUSD chart. The adapter was exercised through Chrome's developer testing interface, not an installed extension: complete extension installation/message routing still needs a user-approved unpacked install. Chrome/macOS installation and inference have not been tested. The original 256-context model parity remains documented separately.
+Verified on ASUS Chrome on 2026-10-04: the Pine script compiled and was saved privately; a real 32-lookback/24-horizon WebGPU forecast from completed OKX candles passed through the installed extension into the actual TradingView chart. The overlay displayed future candles, a close path, high/low labels, and an explicit mismatch on a Coinbase BTCUSD chart. A pre-install chart required reloading to activate its receiver. Chrome/macOS extension installation and inference have not been tested. The original 256-context model parity remains documented separately.
 
 Nineteen Node contract/worker tests and five Chrome DOM adapter tests passed. The synthetic browser harness is `tests/adapter-harness.html`; it is a safety fixture, not model output or a live integration result.
 
