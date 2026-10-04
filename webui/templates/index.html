@@ -50,6 +50,9 @@
             margin-bottom: 30px;
         }
 
+        .main-content > * { min-width: 0; }
+        #live-chart { width: 100%; }
+
         .control-panel {
             background: white;
             border-radius: 15px;
@@ -481,6 +484,8 @@
 
                 <hr style="margin: 20px 0; border: 1px solid #e2e8f0;">
 
+                {% include 'polygon_panel.html' %}
+
                 <!-- Data File Selection -->
                 <div class="form-group">
                     <label for="data-file-select">Select Data File:</label>
@@ -577,6 +582,9 @@
             </div>
 
             <div class="chart-container">
+                <h2>Polygon live candles and forecast</h2>
+                <p id="live-forecast-note" class="form-text">Fetch candles from the Polygon panel to begin.</p>
+                <div id="live-chart" aria-label="Live market chart"></div>
                 <h2>📈 Prediction Results Chart</h2>
                 <div id="chart"></div>
                 
@@ -1234,5 +1242,6 @@
             }
         }
     </script>
+    <script src="{{ url_for('static', filename='polygon_live.js') }}"></script>
 </body>
 </html>

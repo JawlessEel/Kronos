@@ -30,6 +30,8 @@ def main():
     parser.add_argument("--port", type=int, default=7070)
     args = parser.parse_args()
     configure_local_models()
+    from webui.polygon_feed import register_live_feed
+    register_live_feed(ui.app, ui)
     print(f"Open http://127.0.0.1:{args.port}; Ctrl+C stops the server.", flush=True)
     ui.app.run(host="127.0.0.1", port=args.port, debug=False, use_reloader=False)
 

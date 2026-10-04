@@ -11,8 +11,9 @@ No administrator permissions or environment activation are needed.
 5. Compare the forecast with the held-out actual candles, and move the time-window slider to try another period.
 
 The included CSV is upstream historical Alibaba Hong Kong (09988) five-minute data,
-not a live feed. This UI performs historical forecast comparisons; it does not place
-trades or fetch current quotes. Results are saved in `webui/prediction_results/`.
+not a live feed. The CSV controls perform historical forecast comparisons. For
+current provider data, use the Polygon panel below. The application does not place
+trades. Historical results are saved in `webui/prediction_results/`.
 The setup-check report and forecast are in `outputs/`.
 
 ## Use your own data
@@ -78,3 +79,53 @@ this folder; preserve models, data, and forecasts before any future cleanup.
 
 Sources: https://github.com/JawlessEel/Kronos and
 https://huggingface.co/buckets/Jawless/Kronos-base-bucket.
+
+## Polygon live market data
+
+The server reads `POLYGON_API_KEY` from a private, Git-ignored `.env` file in the
+project root, or from an existing process environment variable. `.env.example`
+documents the setting names. The browser never receives the key. Keep the key out
+of URLs, screenshots, logs and Git; no changes to your original provider setup
+are required. Restart Kronos after installation to register the live endpoints.
+
+1. Load **Kronos-base** on **CUDA** in the Control Panel.
+2. In **Polygon market data**, enter **SPY**, AAPL, or another US stock/ETF.
+3. Choose 1-, 5-, or 15-minute candles and click **Fetch latest candles**.
+4. The live chart shows the newest **400 completed regular-session candles**.
+   The status gives the last candle's timestamp/close, fetch time, market-open state,
+   and a data-delay notice. Extended-hours and unfinished bars are excluded.
+5. Click **Forecast latest candles** to predict the next 1–120 candles (30 by default).
+   Future timestamps follow the NYSE calendar, including holidays, early closes and
+   daylight-saving changes. Both stocks and ETFs use this US regular-session calendar.
+6. Optionally click **Start 60-second refresh**, then **Stop refresh** to stop it.
+   Refresh updates observed candles, not forecasts. It stops when the tab is hidden,
+   after three consecutive failures, or after four hours; it requires no background service.
+
+This uses the Polygon **REST aggregate-candle feed**, not a tick-by-tick WebSocket
+stream. Subscription entitlements determine whether data is end-of-day, delayed,
+or real-time. An `OK` response does not prove real-time entitlement. At weekends
+and after hours, the last completed regular-session bar can legitimately be old.
+Forecasts always start after the latest available bar; with delayed data, some
+forecast timestamps may already be in the past relative to your wall clock.
+
+The adapter queries the latest 30 calendar days using split-adjusted descending
+aggregates with a 50,000 base-bar limit, then sorts and validates OHLCV, estimates
+turnover as VWAP times share volume, and filters exchange sessions. Missing
+trade intervals are not filled with invented prices. Responses are cached for
+60 seconds per symbol/interval. Network requests have bounded timeouts and do not
+automatically retry. Subscription denials and rate limits produce explicit errors.
+
+Live forecasts are timestamped JSON files under `outputs/live/`. They contain
+the forecast anchor and freshness metadata, with no fabricated future actuals or
+historical error scores. The original CSV workflow remains available separately.
+
+Verification in PowerShell, with the local server running:
+
+```powershell
+Set-Location 'D:\projects\kronos'
+.\.venv\Scripts\python.exe scripts\verify_live_feed.py
+.\.venv\Scripts\python.exe -m pytest tests\test_polygon_feed.py -q
+```
+
+Provider documentation: https://massive.com/docs/rest/stocks/aggregates/custom-bars
+(Polygon now operates as Massive; the existing Polygon URL and keys remain supported).

@@ -1,0 +1,25 @@
+<section aria-label="Polygon live feed" style="border-top:1px solid #e2e8f0; padding-top:18px; margin-top:16px">
+    <h3>Polygon market data</h3>
+    <p class="form-text">Load a model above, then fetch the latest completed US regular-session candles. Data delay depends on your subscription.</p>
+    <div class="form-group">
+        <label for="live-ticker">Live ticker:</label>
+        <input id="live-ticker" value="SPY" maxlength="15" autocomplete="off">
+    </div>
+    <div class="form-group">
+        <label for="live-interval">Live candle interval:</label>
+        <select id="live-interval">
+            <option value="1">1 minute</option>
+            <option value="5" selected>5 minutes</option>
+            <option value="15">15 minutes</option>
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="live-horizon">Future candles:</label>
+        <input id="live-horizon" type="number" min="1" max="120" value="30">
+    </div>
+    <button id="live-fetch" class="btn btn-secondary" type="button">Fetch latest candles</button>
+    <button id="live-refresh" class="btn btn-secondary" type="button">Start 60-second refresh</button>
+    <button id="live-predict" class="btn" type="button">Forecast latest candles</button>
+    <p id="live-status" role="status" style="white-space:pre-line; overflow-wrap:anywhere">Checking Polygon connection settings...</p>
+    <p class="form-text">Forecast uses the newest 400 available candles and skips market closures. Auto-refresh updates candles only; it stops when this page is hidden, after three errors, or after four hours. Forecasts are saved under outputs/live.</p>
+</section>
