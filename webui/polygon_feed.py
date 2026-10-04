@@ -212,10 +212,12 @@ def register_live_feed(app, ui):
     @app.before_request
     def guard_live_requests():
         if request.path.startswith("/api/live/"):
-            if request.host.split(":")[0] not in ("127.0.0.1", "localhost") or request.headers.get("Sec-Fetch-Site") == "cross-site":
+            authenticated = app.config.get('KRONOS_AUTHENTICATED', False)
+            if (not authenticated and request.host.split(":")[0] not in ("127.0.0.1", "localhost")) or request.headers.get("Sec-Fetch-Site") == "cross-site":
                 return jsonify(error="Live feed requests must come from this local application."), 403
             origin = request.headers.get("Origin")
-            if origin and origin != request.host_url.rstrip("/"):
+            expected_origin = request.host_url.rstrip("/").replace('http://', 'https://', 1) if authenticated else request.host_url.rstrip("/")
+            if origin and origin != expected_origin:
                 return jsonify(error="Live feed requests must come from this local application."), 403
         if request.path in ("/api/load-model", "/api/predict", "/api/live/predict"):
             if not inference_lock.acquire(blocking=False):
@@ -267,7 +269,19 @@ def register_live_feed(app, ui):
             raise FeedError(str(error)) from None
         df, info = feed.candles(ticker, interval, max(history, lookback))
         model_df = df.tail(lookback)
-        future = future_timestamps(df["timestamps"].iloc[-1], interval, count)
+        if args.get('target_today') is True:
+            from webui.watch_summary import remaining_session_times
+            try:
+                future = remaining_session_times(df['timestamps'].iloc[-1], interval, pd.Timestamp.now(tz='UTC'))
+            except ValueError as error:
+                raise FeedError(str(error), 422) from None
+            count = len(future)
+            try:
+                validate_forecast(ui.predictor, lookback, count, temperature, top_p, samples)
+            except ValueError as error:
+                raise FeedError(str(error)) from None
+        else:
+            future = future_timestamps(df["timestamps"].iloc[-1], interval, count)
         try:
             pred = ui.predictor.predict(df=model_df.drop(columns="timestamps"), x_timestamp=model_df["timestamps"], y_timestamp=future, pred_len=count, T=temperature, top_p=top_p, sample_count=samples, verbose=False)
         except Exception:
@@ -276,7 +290,7 @@ def register_live_feed(app, ui):
         if len(pred) != count or not np.isfinite(pred.to_numpy()).all():
             raise FeedError("Kronos returned non-finite predictions; results were not saved.", 500)
         prediction = records(pred.reset_index(names="timestamps"))
-        result = dict(success=True, feed=info, chart=chart(df, ticker, pred), prediction_results=prediction,
+        result = dict(success=True, generated_at=pd.Timestamp.now(tz='UTC').isoformat(), feed=info, chart=chart(df, ticker, pred), prediction_results=prediction,
                       candles=records(df), settings=dict(lookback=lookback, pred_len=count, sample_count=samples, temperature=temperature, top_p=top_p), actual_data=[], has_comparison=False, forecast_anchor=info["last_candle"],
                       message=f"{ticker}: forecasted {count} candles after the latest available completed candle. No future actual prices are known.")
         output = ROOT / "outputs" / "live"
@@ -291,4 +305,6 @@ def register_live_feed(app, ui):
         return jsonify(result)
 
     app.register_blueprint(routes)
+    from webui.watch_summary import register_watch_summary
+    register_watch_summary(app, ROOT / 'outputs' / 'live')
     return feed

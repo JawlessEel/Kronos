@@ -82,3 +82,6 @@ models/
 data/
 outputs/
 webui/prediction_results/prediction_2026*.json
+apple/Generated/
+apple/*.xcodeproj/
+apple/build/
