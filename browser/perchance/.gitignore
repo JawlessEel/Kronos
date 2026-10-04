@@ -1,4 +1,9 @@
-src/kronos-local/models/
+!src/kronos-local/models/
+src/kronos-local/models/*
+!src/kronos-local/models/tokenizer-encode.onnx
+!src/kronos-local/models/tokenizer-decode.onnx
+!src/kronos-local/models/predictor-s1.onnx
+!src/kronos-local/models/predictor-s2.onnx
 src/kronos-local/parity/
 validation-*.csv
 validation-*.pdf
