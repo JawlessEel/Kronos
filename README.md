@@ -2,6 +2,10 @@
   <h2><b>Kronos: A Foundation Model for the Language of Financial Markets </b></h2>
 </div>
 
+## Windows, Mac mini, and iPhone setup
+
+Use [WINDOWS-QUICKSTART.md](WINDOWS-QUICKSTART.md) for Windows and [MACOS-QUICKSTART.md](MACOS-QUICKSTART.md) for Apple Silicon setup, private phone access, and portable presets. The [Apple roadmap](docs/APPLE-ROADMAP.md) covers later native iOS and Apple Watch work. Models, credentials, environments, and data stay out of Git.
+
 
 <div align="center">
 

@@ -611,6 +611,10 @@ def load_model():
         data = request.get_json()
         model_key = data.get('model_key', 'kronos-small')
         device = data.get('device', 'cpu')
+        import torch
+        supported = {'cpu': True, 'cuda': torch.cuda.is_available(), 'mps': torch.backends.mps.is_available()}
+        if device not in supported or not supported[device]:
+            return jsonify({'error': f'Device {device} is unavailable on this server. Choose CPU or an available accelerator.'}), 400
         
         if model_key not in AVAILABLE_MODELS:
             return jsonify({'error': f'Unsupported model: {model_key}'}), 400
@@ -645,8 +649,16 @@ def get_available_models():
     """Get available model list"""
     return jsonify({
         'models': AVAILABLE_MODELS,
-        'model_available': MODEL_AVAILABLE
+        'model_available': MODEL_AVAILABLE,
+        'devices': available_devices()
     })
+
+
+def available_devices():
+    if not MODEL_AVAILABLE:
+        return {'cpu': True, 'cuda': False, 'mps': False}
+    import torch
+    return {'cpu': True, 'cuda': torch.cuda.is_available(), 'mps': torch.backends.mps.is_available()}
 
 @app.route('/api/model-status')
 def get_model_status():

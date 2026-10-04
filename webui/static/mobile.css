@@ -1,0 +1,25 @@
+.preset-panel { border:1px solid #cbd5e1; border-radius:8px; padding:14px; margin-bottom:20px; }
+.preset-panel label { display:block; margin:10px 0 5px; font-weight:600; }
+.preset-panel input:not([type=file]),.preset-panel select { width:100%; padding:10px; border:1px solid #94a3b8; border-radius:6px; font:inherit; }
+.preset-actions { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0; }
+.preset-actions button { padding:10px; border:1px solid #94a3b8; border-radius:6px; background:#e2e8f0; color:#334155; cursor:pointer; }
+#preset-status { font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+.mobile-nav { display:none; }
+@media(max-width:768px) {
+    .container { padding: max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(80px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left)); }
+    .header h1 { font-size:1.5rem; }.header p { font-size:.95rem; }
+    .control-panel,.chart-container { padding:14px; }
+    input,select,textarea,.chart-workspace input,.chart-workspace select { font-size:16px !important; }
+    button,.chart-workspace button,.chart-settings summary { min-height:44px; }
+    .chart-settings-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .chart-settings-grid label { min-width:0; }.chart-settings-grid input,.chart-settings-grid select { max-width:100%; }
+    .chart-workspace { padding:6px; }.chart-toolbar { gap:5px; }
+    .chart-toolbar button { flex:1 1 110px; }
+    .forecast-candle-data { padding:10px; }.forecast-table-scroll { overscroll-behavior-x:contain; }
+    .forecast-candle-table th:nth-child(2),.forecast-candle-table td:nth-child(2) { position:sticky; left:0; background:#e2e8f0; }
+    .forecast-candle-table th:nth-child(2) { z-index:3; }
+    .chart-workspace.chart-overlay { height:100dvh; padding: max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom)); }
+    .mobile-nav { display:flex; position:fixed; bottom:0; left:0; right:0; padding:8px 10px max(8px,env(safe-area-inset-bottom)); gap:8px; background:#101827; z-index:9000; }
+    .mobile-nav a { flex:1; text-align:center; color:#fff; padding:12px 5px; border-radius:6px; background:#334155; text-decoration:none; }
+    #controls,#live-workspace,#live-candle-data { scroll-margin-top:12px; }
+}

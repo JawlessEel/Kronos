@@ -1,0 +1,12 @@
+<section class="preset-panel" aria-label="Settings presets">
+    <h3>Settings presets</h3>
+    <label for="preset-select">Choose a preset</label><select id="preset-select"></select>
+    <label for="preset-name">Preset name</label><input id="preset-name" maxlength="80" placeholder="My SPY setup">
+    <div class="preset-actions">
+        <button id="preset-apply" type="button">Apply</button><button id="preset-save" type="button">Save new</button>
+        <button id="preset-update" type="button">Update selected</button><button id="preset-delete" type="button">Delete selected</button>
+        <button id="preset-export" type="button">Export preset</button><button id="preset-import" type="button">Import preset</button>
+    </div>
+    <input id="preset-file" type="file" accept="application/json,.json" hidden>
+    <p id="preset-status" role="status">Presets save forecast controls and both charts' settings. They do not load models, fetch data, or start refresh.</p>
+</section>

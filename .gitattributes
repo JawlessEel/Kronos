@@ -1,2 +1,3 @@
 # Preserve the exact integrity-verified browser vendor assets on Windows.
 /webui/static/vendor/*.js -text
+*.sh text eol=lf

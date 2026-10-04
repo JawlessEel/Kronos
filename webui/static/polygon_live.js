@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
         controlIds.forEach(id => {
             const control = document.getElementById(id);
             if (!control || typeof saved[id] !== 'string') return;
-            if (control.tagName === 'SELECT' && !Array.from(control.options).some(option => option.value === saved[id])) return;
+            if (control.tagName === 'SELECT' && !Array.from(control.options).some(option => option.value === saved[id] && !option.disabled)) return;
             if (control.type === 'number' || control.type === 'range') {
                 const value = Number(saved[id]); if (!Number.isFinite(value) || value < Number(control.min) || value > Number(control.max)) return;
             }

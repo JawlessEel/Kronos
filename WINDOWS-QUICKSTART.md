@@ -243,3 +243,9 @@ Additional check: `node tests/test_prediction_candles.cjs`.
 The Quality column flags impossible OHLC ranges and negative volume/turnover.
 Kronos predicts channels independently and can produce inconsistent candle bounds;
 raw outputs are retained in the UI, CSV and PDF rather than silently repaired.
+
+## Named presets and Apple clients
+
+The control panel now includes **Settings presets**. Choose a built-in or enter a name and **Save new** to keep all forecast controls plus chart/indicator settings. **Update selected** replaces a saved preset; **Apply** restores settings without loading a model, fetching data, or starting refresh. **Export preset / Import preset** moves settings between Windows, Mac, and phone. Storage is per browser and origin; presets do not contain keys, datasets, forecasts, or temporary drawings. Unsupported devices are skipped visibly, so a CUDA preset remains usable on a Mac.
+
+See [MACOS-QUICKSTART.md](MACOS-QUICKSTART.md) for the Apple Silicon installer and private HTTPS phone access, and [docs/APPLE-ROADMAP.md](docs/APPLE-ROADMAP.md) for the later native iOS and Apple Watch companion. The mobile web layout includes bottom navigation, touch-sized controls, safe-area handling, and pinned candle timestamps.

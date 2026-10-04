@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Kronos Financial Prediction Web UI</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -441,6 +441,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
 </head>
 <body>
     <div class="container">
@@ -448,10 +449,12 @@
             <h1>🚀 Kronos Financial Prediction Web UI</h1>
             <p>AI-based financial K-line data prediction analysis platform</p>
             <div class="pdf-export-toolbar" data-html2canvas-ignore="true"><button id="download-ui-pdf" type="button">Download whole UI as PDF</button><span id="pdf-export-status" role="status"></span></div>
+            {% if config.SESSION_COOKIE_SECURE %}<form method="post" action="/logout" data-html2canvas-ignore="true"><button type="submit">Sign out</button></form>{% endif %}
         </div>
 
         <div class="main-content">
-            <div class="control-panel">
+            <div class="control-panel" id="controls">
+                {% include "presets.html" %}
                 <h2>🎯 Control Panel</h2>
 
                 <!-- Model Selection -->
@@ -682,6 +685,10 @@
                 const response = await axios.get('/api/available-models');
                 if (response.data.model_available) {
                     availableModels = response.data.models;
+                    const devices=response.data.devices || {cpu:true,cuda:false,mps:false};
+                    const deviceSelect=document.getElementById('device-select');
+                    [...deviceSelect.options].forEach(option=>{option.disabled=!devices[option.value];});
+                    if(!devices[deviceSelect.value]) deviceSelect.value=devices.mps?'mps':devices.cuda?'cuda':'cpu';
                     populateModelSelect();
                     document.dispatchEvent(new Event('kronos-models-ready'));
                     console.log('✅ Available models loaded successfully:', availableModels);
@@ -1252,6 +1259,8 @@
     <script src="{{ url_for('static', filename='prediction_candles.js') }}"></script>
     <script src="{{ url_for('static', filename='chart_workbench.js') }}"></script>
     <script src="{{ url_for('static', filename='polygon_live.js') }}"></script>
+    <script src="{{ url_for('static', filename='presets.js') }}"></script>
     <script src="{{ url_for('static', filename='ui_pdf_export.js') }}"></script>
+    <nav class="mobile-nav" aria-label="Mobile navigation" data-html2canvas-ignore="true"><a href="#controls">Controls</a><a href="#live-chart">Chart</a><a href="#live-candle-data">Predictions</a></nav>
 </body>
 </html>
