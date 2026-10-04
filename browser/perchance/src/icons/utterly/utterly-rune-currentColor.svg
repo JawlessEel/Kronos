@@ -1,0 +1,4 @@
+<!-- Othala rune — UTTERLY, inherits fill from CSS "color" when inlined. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" fill="none">
+  <path fill="currentColor" fill-rule="evenodd" d="M48 3 L83.48 38.16 L58.81 63.32 L67.52 71.87 L78.32 61.39 L88.32 71.87 L67.52 93 L48 73.97 L28.48 93 L7.68 71.87 L17.68 61.39 L28.48 71.87 L37.19 63.32 L12.52 38.16 Z M48 23.97 L62.36 38.32 L48 52.68 L33.64 38.32 Z"/>
+</svg>

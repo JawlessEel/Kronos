@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Utterly — Othala rune asset preview</title>
+<style>
+  body { margin:0; font-family: system-ui, sans-serif; }
+  section { padding: 28px 24px; }
+  .dark  { background:#0c0f17; color:#e8edf6; }
+  .light { background:#F6F7FB; color:#1B1F2A; }
+  h2 { font-size:14px; letter-spacing:.08em; text-transform:uppercase; opacity:.65; margin:0 0 18px; }
+  .row { display:flex; flex-wrap:wrap; gap:26px; align-items:flex-end; }
+  figure { margin:0; text-align:center; }
+  figcaption { font-size:11px; opacity:.6; margin-top:8px; }
+  .sz16{width:16px} .sz32{width:32px} .sz64{width:64px} .sz96{width:96px} .sz180{width:180px}
+  svg, img { display:block; }
+  .swatches { display:flex; gap:10px; margin-top:14px; font-size:11px; }
+  .sw { width:120px; border-radius:8px; padding:10px; color:#0c0f17; font-weight:700; }
+</style>
+</head>
+<body>
+
+<section class="dark">
+  <h2>Dark background — dark-theme gradient (amber → rose)</h2>
+  <div class="row">
+    <figure><img class="sz16" src="png/utterly-16.png" alt=""><figcaption>16</figcaption></figure>
+    <figure><img class="sz32" src="png/utterly-32.png" alt=""><figcaption>32</figcaption></figure>
+    <figure><img class="sz64" src="png/utterly-64.png" alt=""><figcaption>64</figcaption></figure>
+    <figure><img class="sz96" src="png/utterly-128.png" alt=""><figcaption>128</figcaption></figure>
+    <figure><img class="sz180" src="png/utterly-256.png" alt=""><figcaption>256</figcaption></figure>
+    <figure><img class="sz180" src="png/utterly-appicon-180.png" alt=""><figcaption>app icon 180</figcaption></figure>
+  </div>
+  <div class="swatches">
+    <div class="sw" style="background:#FFC24B">#FFC24B stop A</div>
+    <div class="sw" style="background:#FF3D7F;color:#fff">#FF3D7F stop B</div>
+    <div class="sw" style="background:#140D12;color:#FFC24B">#140D12 backing</div>
+  </div>
+</section>
+
+<section class="light">
+  <h2>Light background — theme-aware SVG (switches via prefers-color-scheme)</h2>
+  <div class="row">
+    <figure><img class="sz16" src="utterly-rune.svg" alt=""><figcaption>theme-aware SVG</figcaption></figure>
+    <figure><img class="sz64" src="utterly-rune.svg" alt=""><figcaption>theme-aware SVG</figcaption></figure>
+    <figure><img class="sz96" src="utterly-rune-light.svg" alt=""><figcaption>light gradient</figcaption></figure>
+    <figure style="color:#D62066"><img class="sz96" src="utterly-rune-currentColor.svg" alt=""><figcaption>currentColor</figcaption></figure>
+    <figure><img class="sz96" src="utterly-rune-animated.svg" alt=""><figcaption>animated (glow)</figcaption></figure>
+  </div>
+  <p style="font-size:12px;opacity:.7;max-width:640px">
+    Sibling of the DadChat mark: same Othala geometry, different hue — so a browser tab
+    running Utterly never gets mistaken for a tab running DadChat.
+  </p>
+</section>
+
+</body>
+</html>

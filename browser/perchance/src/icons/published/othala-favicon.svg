@@ -1,0 +1,17 @@
+<svg viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .rune-a { stop-color: #00E5C3; }
+    .rune-b { stop-color: #5B6EF5; }
+    @media (prefers-color-scheme: light) {
+      .rune-a { stop-color: #00B89E; }
+      .rune-b { stop-color: #4558E8; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="dadRuneGradFavicon" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop class="rune-a" offset="0"/>
+      <stop class="rune-b" offset="1"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#dadRuneGradFavicon)" fill-rule="evenodd" d="M48.00 3.00 L 83.48 38.16 L 58.81 63.32 L 67.52 71.87 L 78.32 61.39 L 88.32 71.87 L 67.52 93.00 L 48.00 73.97 L 28.48 93.00 L 7.68 71.87 L 17.68 61.39 L 28.48 71.87 L 37.19 63.32 L 12.52 38.16 Z M48.00 23.97 L 62.35 38.32 L 48.00 52.68 L 33.65 38.32 Z"/>
+</svg>

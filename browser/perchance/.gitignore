@@ -1,0 +1,5 @@
+src/kronos-local/models/
+src/kronos-local/parity/
+validation-*.csv
+validation-*.pdf
+.venv-export/
