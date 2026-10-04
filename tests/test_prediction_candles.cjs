@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const candles=require('../webui/static/prediction_candles.js');
+const bars=[{timestamp:'2026-10-05T09:30:00-04:00',open:100,high:102,low:99,close:101,volume:10,amount:1010},{timestamp:'2026-10-05T09:35:00-04:00',open:101,high:102,low:99,close:100,volume:20,amount:2000}];
+const rows=candles.rowsFor(bars,100,true);
+assert.equal(rows[0].time,'2026-10-05 09:30 EDT');
+assert.equal(rows[0].change,1);assert.equal(rows[0].percent,1);assert.equal(rows[0].movement,'Up');assert.equal(rows[0].body,'Up');
+assert.equal(rows[1].change,-1);assert.equal(rows[1].movement,'Down');
+assert.ok(Math.abs(rows[1].percent+100/101)<1e-10);
+assert.equal(candles.rowsFor([{...bars[0],timestamp:'2026-11-02T09:30:00-05:00'}],100,true)[0].time,'2026-11-02 09:30 EST');
+assert.equal(candles.rowsFor([{...bars[0],timestamp:'2019-11-26T09:35:00'}],100,false)[0].time,'2019-11-26 09:35:00');
+assert.equal(candles.rowsFor(bars,undefined,true)[0].movement,'Unknown');
+assert.equal(rows.length,bars.length);
+assert.equal(candles.cells(rows[0]).length,12);
+assert.equal(rows[0].quality,'OK');
+assert.equal(candles.rowsFor([{...bars[0],high:99}],100,true)[0].quality,'OHLC bounds');
+console.log('Forecast movement, anchor, timestamp/DST, and complete-row checks passed.');

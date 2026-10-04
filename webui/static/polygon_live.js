@@ -12,6 +12,48 @@ document.addEventListener('DOMContentLoaded', () => {
     let busy = false;
     let failures = 0;
     let cycles = 0;
+    const controlIds = ['model-select', 'device-select', 'live-ticker', 'live-interval', 'live-history', 'live-lookback', 'live-horizon', 'lookback', 'pred-len', 'temperature', 'top-p', 'sample-count'];
+    const modelSelect = document.querySelector('label[for="model-select"]') ? document.getElementById('model-select') : document.querySelector('select[id*="model"]');
+    function modelLimits() {
+        const limit = modelSelect.value === 'kronos-mini' ? 2048 : 512;
+        ['live-lookback','live-horizon','lookback','pred-len'].forEach(id => {
+            const control = document.getElementById(id); control.max = limit;
+            if (Number(control.value) > limit) control.value = limit;
+        });
+        document.getElementById('model-context-note').textContent = `Selected model context: ${limit.toLocaleString()} candles. Load the selected model before forecasting. Chart history is independent.`;
+    }
+    function restoreControls() { try {
+        const saved = JSON.parse(localStorage.getItem('kronos-forecast-controls-v1') || '{}');
+        document.getElementById('control-save-note').textContent = Object.keys(saved).length ? 'Saved control preferences restored.' : 'Control preferences use local browser storage.';
+        controlIds.forEach(id => {
+            const control = document.getElementById(id);
+            if (!control || typeof saved[id] !== 'string') return;
+            if (control.tagName === 'SELECT' && !Array.from(control.options).some(option => option.value === saved[id])) return;
+            if (control.type === 'number' || control.type === 'range') {
+                const value = Number(saved[id]); if (!Number.isFinite(value) || value < Number(control.min) || value > Number(control.max)) return;
+            }
+            control.value = saved[id];
+            if (id === 'model-select') modelLimits();
+        });
+    } catch { /* Leave defaults when local settings are invalid. */ } }
+    restoreControls();
+    function samplingLabels() {
+        document.getElementById('temperature-value').textContent = document.getElementById('temperature').value;
+        document.getElementById('top-p-value').textContent = document.getElementById('top-p').value;
+    }
+    samplingLabels();
+    document.addEventListener('kronos-models-ready', () => { restoreControls(); modelLimits(); samplingLabels(); });
+    modelLimits();
+    function saveControls() {
+        modelLimits();
+        const saved = Object.fromEntries(controlIds.filter(id=>document.getElementById(id)).map(id=>[id,document.getElementById(id).value]));
+        try { localStorage.setItem('kronos-forecast-controls-v1', JSON.stringify(saved)); document.getElementById('control-save-note').textContent = 'Control preferences saved locally.'; } catch { status.textContent = 'Browser storage is unavailable; controls will not persist after reload.'; }
+    }
+    controlIds.forEach(id => {
+        const control=document.getElementById(id);
+        control?.addEventListener('change',saveControls);
+        if(control?.tagName==='INPUT') control.addEventListener('input',saveControls);
+    });
 
     function stop(message) {
         active = false;
@@ -22,12 +64,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function parameters() {
-        return {ticker: ticker.value.trim().toUpperCase(), interval: Number(interval.value)};
+        return {ticker: ticker.value.trim().toUpperCase(), interval: Number(interval.value), history: Number(document.getElementById('live-history').value)};
     }
 
     async function requestJson(url, options = {}) {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 120000);
+        const timeout = setTimeout(() => controller.abort(), 600000);
         try {
             const response = await fetch(url, {...options, signal: controller.signal});
             const payload = await response.json();
@@ -61,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({...args,
                         pred_len: Number(document.getElementById('live-horizon').value),
+                        lookback: Number(document.getElementById('live-lookback').value),
                         temperature: Number(document.getElementById('temperature').value),
                         top_p: Number(document.getElementById('top-p').value),
                         sample_count: Number(document.getElementById('sample-count').value)})
@@ -76,7 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 forecastNote.textContent = 'Latest available candles. Click Forecast latest candles to generate a new forecast.';
             }
             const figure = JSON.parse(result.chart);
-            await Plotly.newPlot('live-chart', figure.data, figure.layout, {responsive: true});
+            await ChartWorkbench.render('live-chart', figure, result);
+            PredictionCandles.render('live-candle-data', result);
             failures = 0;
         } catch (error) {
             failures += 1;

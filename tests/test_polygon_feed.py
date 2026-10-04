@@ -89,7 +89,7 @@ def test_live_endpoint_uses_only_history_and_future_calendar(monkeypatch, tmp_pa
     df = live.normalize_bars(market_rows(), 5, pd.Timestamp("2026-10-04T12:00:00Z"))
     info = live.metadata(df, "SPY", 5, pd.Timestamp("2026-10-04T12:00:00Z"), "OK", pd.Timestamp("2026-10-04T12:00:00Z"))
     monkeypatch.setattr(live, "ROOT", tmp_path)
-    monkeypatch.setattr(live.PolygonFeed, "candles", lambda self, ticker, interval: (df.copy(), info))
+    monkeypatch.setattr(live.PolygonFeed, "candles", lambda self, ticker, interval, count=400: (df.copy(), info))
 
     class Predictor:
         def predict(self, **kwargs):
@@ -128,3 +128,28 @@ def test_provider_denial_and_rate_limit_are_explicit(monkeypatch, code):
         live.PolygonFeed().candles("SPY", 5)
     assert result.value.status == (code if code in (401, 403, 429) else 502)
     assert "test-private-key" not in str(result.value)
+
+
+def test_history_pagination_keeps_credentials_in_header(monkeypatch):
+    monkeypatch.setattr(live, "settings", lambda: ("test-private-key", "https://api.polygon.io"))
+    monkeypatch.setattr(live.pd.Timestamp, "now", lambda **kwargs: pd.Timestamp("2026-10-04T12:00:00Z"))
+    rows = market_rows()
+    calls = []
+    def get(url, **kwargs):
+        calls.append(url)
+        assert "test-private-key" not in url
+        assert "apiKey" not in kwargs['params']
+        assert kwargs['headers']['Authorization'] == 'Bearer test-private-key'
+        payload = {'status':'OK', 'results':rows[-100:], 'next_url':'https://api.polygon.io/v2/aggs/ticker/SPY/range/5/minute/page?cursor=abc&apiKey=discard-me'} if len(calls) == 1 else {'status':'OK','results':rows[:-100]}
+        return SimpleNamespace(status_code=200,json=lambda:payload)
+    monkeypatch.setattr(live.requests, 'get', get)
+    df, info = live.PolygonFeed().candles('SPY',5,1000)
+    assert len(calls) == 2 and len(df) == 1000
+    assert info['rows'] == 1000
+
+
+def test_external_history_pagination_rejected(monkeypatch):
+    monkeypatch.setattr(live, 'settings', lambda: ('test-private-key','https://api.polygon.io'))
+    monkeypatch.setattr(live.requests, 'get', lambda *args,**kwargs: SimpleNamespace(status_code=200,json=lambda:{'status':'OK','results':market_rows()[-100:],'next_url':'https://other.example/v2/aggs/ticker/SPY/range/page'}))
+    with pytest.raises(live.FeedError, match='pagination URL'):
+        live.PolygonFeed().candles('SPY',5,1000)

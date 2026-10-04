@@ -13,6 +13,7 @@ warnings.filterwarnings('ignore')
 
 # Add project root directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from webui.forecast_settings import validate_forecast
 
 try:
     from model import Kronos, KronosTokenizer, KronosPredictor
@@ -230,7 +231,8 @@ def create_prediction_chart(df, pred_df, lookback, pred_len, actual_df=None, his
         high=historical_df['high'],
         low=historical_df['low'],
         close=historical_df['close'],
-        name='Historical Data (400 data points)',
+        name=f'Historical ({len(historical_df)} candles)',
+        customdata=historical_df['volume'] if 'volume' in historical_df.columns else None,
         increasing_line_color='#26A69A',
         decreasing_line_color='#EF5350'
     ))
@@ -251,7 +253,8 @@ def create_prediction_chart(df, pred_df, lookback, pred_len, actual_df=None, his
             high=pred_df['high'],
             low=pred_df['low'],
             close=pred_df['close'],
-            name='Prediction Data (120 data points)',
+            name=f'Forecast ({len(pred_df)} candles)',
+            customdata=pred_df['volume'] if 'volume' in pred_df.columns else None,
             increasing_line_color='#66BB6A',
             decreasing_line_color='#FF7043'
         ))
@@ -284,14 +287,14 @@ def create_prediction_chart(df, pred_df, lookback, pred_len, actual_df=None, his
             high=actual_df['high'],
             low=actual_df['low'],
             close=actual_df['close'],
-            name='Actual Data (120 data points)',
+            name=f'Actual ({len(actual_df)} candles)',
             increasing_line_color='#FF9800',
             decreasing_line_color='#F44336'
         ))
     
     # Update layout
     fig.update_layout(
-        title='Kronos Financial Prediction Results - 400 Historical Points + 120 Prediction Points vs 120 Actual Points',
+        title=f'Kronos: {lookback} history + {pred_len} forecast candles',
         xaxis_title='Time',
         yaxis_title='Price',
         template='plotly_white',
@@ -407,6 +410,10 @@ def predict():
         temperature = float(data.get('temperature', 1.0))
         top_p = float(data.get('top_p', 0.9))
         sample_count = int(data.get('sample_count', 1))
+        try:
+            validate_forecast(predictor, lookback, pred_len, temperature, top_p, sample_count)
+        except ValueError as error:
+            return jsonify(error=str(error)), 400
         
         if not file_path:
             return jsonify({'error': 'File path cannot be empty'}), 400
@@ -430,6 +437,11 @@ def predict():
                 
                 # Process time period selection
                 start_date = data.get('start_date')
+                if data.get('start_index') is not None:
+                    start_index = int(data['start_index'])
+                    if not 0 <= start_index <= len(df) - lookback - pred_len:
+                        return jsonify(error='Selected row window exceeds available data.'), 400
+                    start_date = df['timestamps'].iloc[start_index].isoformat()
                 
                 if start_date:
                     # Custom time period - fix logic: use data within selected window

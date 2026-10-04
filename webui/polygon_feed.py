@@ -15,6 +15,7 @@ import pandas_market_calendars as mcal
 import plotly.graph_objects as go
 from plotly.utils import PlotlyJSONEncoder
 import requests
+from webui.forecast_settings import validate_forecast, history_length
 
 ROOT = Path(__file__).resolve().parents[1]
 CALENDAR = mcal.get_calendar("NYSE")
@@ -50,7 +51,7 @@ def selection(ticker, interval):
     return ticker, interval
 
 
-def normalize_bars(results, interval, now):
+def normalize_bars(results, interval, now, count=400):
     """Discard unfinished and extended-hours bars without inventing missing candles."""
     if not results:
         raise FeedError("No candles returned. Check the symbol and your data subscription.", 422)
@@ -77,9 +78,9 @@ def normalize_bars(results, interval, now):
     end = df["timestamps"] + pd.Timedelta(minutes=interval)
     for session in schedule.itertuples():
         keep |= (df["timestamps"] >= session.market_open) & (end <= session.market_close) & (end <= now)
-    df = df.loc[keep, ["timestamps", "open", "high", "low", "close", "volume", "amount"]].tail(400).reset_index(drop=True)
-    if len(df) < 400:
-        raise FeedError(f"Only {len(df)} completed regular-session candles are available; 400 are required. Try another interval/symbol or check your subscription.", 422)
+    df = df.loc[keep, ["timestamps", "open", "high", "low", "close", "volume", "amount"]].tail(count).reset_index(drop=True)
+    if len(df) < count:
+        raise FeedError(f"Only {len(df)} completed regular-session candles are available; {count} are required. Try another interval/symbol or check your subscription.", 422)
     df["timestamps"] = df["timestamps"].dt.tz_convert(TZ)
     return df
 
@@ -87,7 +88,7 @@ def normalize_bars(results, interval, now):
 def future_timestamps(last, interval, count):
     """Use NYSE holidays, early closes and DST for the forecast calendar."""
     last = pd.Timestamp(last).tz_convert("UTC")
-    schedule = CALENDAR.schedule(start_date=last.date(), end_date=last.date() + timedelta(days=60))
+    schedule = CALENDAR.schedule(start_date=last.date(), end_date=last.date() + timedelta(days=365))
     times = []
     step = pd.Timedelta(minutes=interval)
     for session in schedule.itertuples():
@@ -131,10 +132,11 @@ class PolygonFeed:
         self.cache = {}
         self.last_attempt = {}
 
-    def candles(self, ticker, interval):
+    def candles(self, ticker, interval, count=400):
         ticker, interval = selection(ticker, interval)
         now = pd.Timestamp.now(tz="UTC")
-        cache_key = (ticker, interval)
+        count = history_length(count)
+        cache_key = (ticker, interval, count)
         with self.lock:
             cached = self.cache.get(cache_key)
             if cached and time.monotonic() - cached[3] < 60:
@@ -146,7 +148,7 @@ class PolygonFeed:
             if not key:
                 raise FeedError("Polygon key is missing from the server's private .env file.", 503)
             self.last_attempt[cache_key] = time.monotonic()
-            url = f"{base}/v2/aggs/ticker/{ticker}/range/{interval}/minute/{(now - pd.Timedelta(days=30)).date()}/{now.date()}"
+            url = f"{base}/v2/aggs/ticker/{ticker}/range/{interval}/minute/{(now - pd.Timedelta(days=365)).date()}/{now.date()}"
             try:
                 response = requests.get(url, headers={"Authorization": f"Bearer {key}"}, params={"adjusted": "true", "sort": "desc", "limit": 50000}, timeout=(5, 30), allow_redirects=False)
             except requests.RequestException:
@@ -166,7 +168,34 @@ class PolygonFeed:
             status = payload.get("status")
             if status not in ("OK", "DELAYED"):
                 raise FeedError("Polygon did not authorize usable candle data. Check the subscription.", 502)
-            df = normalize_bars(payload.get("results"), interval, now)
+            all_rows = payload.get("results") or []
+            # Polygon limits underlying minute aggregates per page. Follow only
+            # same-provider aggregate pages, never credentials from next_url.
+            from urllib.parse import urlsplit, parse_qsl
+            for _ in range(12):
+                try:
+                    df = normalize_bars(all_rows, interval, now, count)
+                    break
+                except FeedError as error:
+                    if error.status != 422 or not payload.get("next_url"):
+                        raise
+                next_page = urlsplit(payload["next_url"])
+                if next_page.scheme != "https" or next_page.netloc != urlsplit(base).netloc or not next_page.path.startswith(f"/v2/aggs/ticker/{ticker}/range/"):
+                    raise FeedError("Provider returned an invalid pagination URL.", 502)
+                try:
+                    page = requests.get(base + next_page.path, headers={"Authorization": f"Bearer {key}"}, params={k: v for k, v in parse_qsl(next_page.query) if k.lower() != "apikey"}, timeout=(5, 30), allow_redirects=False)
+                    if page.status_code != 200:
+                        raise FeedError(f"Provider history page returned HTTP {page.status_code}.", 502)
+                    payload = page.json()
+                    if not isinstance(payload, dict) or payload.get("status") not in ("OK", "DELAYED"):
+                        raise FeedError("Provider history page is invalid.", 502)
+                    if payload.get("status") == "DELAYED":
+                        status = "DELAYED"
+                    all_rows.extend(payload.get("results") or [])
+                except (requests.RequestException, ValueError):
+                    raise FeedError("Provider history request failed.", 502) from None
+            else:
+                raise FeedError("Requested history exceeds the bounded provider page budget. Reduce chart history.", 422)
             # Bound memory when symbols are changed frequently.
             if len(self.cache) >= 20:
                 self.cache.clear()
@@ -206,11 +235,15 @@ def register_live_feed(app, ui):
     @routes.get("/api/live/status")
     def status():
         key, _ = settings()
-        return jsonify(configured=bool(key), refresh_seconds=60, symbol="SPY", intervals=list(INTERVALS))
+        return jsonify(configured=bool(key), refresh_seconds=60, symbol="SPY", intervals=list(INTERVALS), models={k: v["context_length"] for k, v in getattr(ui, "AVAILABLE_MODELS", {}).items()}, loaded_context=getattr(ui.predictor, "max_context", None))
+
+    @routes.errorhandler(ValueError)
+    def invalid_setting(error):
+        return jsonify(error="Invalid chart history; use 16-10,000 candles."), 400
 
     @routes.get("/api/live/candles")
     def candles():
-        df, info = feed.candles(request.args.get("ticker", "SPY"), request.args.get("interval", "5"))
+        df, info = feed.candles(request.args.get("ticker", "SPY"), request.args.get("interval", "5"), request.args.get("history", "400"))
         return jsonify(success=True, feed=info, candles=records(df), chart=chart(df, info["ticker"]))
 
     @routes.post("/api/live/predict")
@@ -221,25 +254,30 @@ def register_live_feed(app, ui):
         ticker, interval = selection(args.get("ticker", "SPY"), args.get("interval", 5))
         try:
             count = int(args.get("pred_len", 30))
+            lookback = int(args.get("lookback", 400))
+            history = history_length(args.get("history", lookback))
             temperature = float(args.get("temperature", 1.0))
             top_p = float(args.get("top_p", 0.9))
             samples = int(args.get("sample_count", 1))
         except (TypeError, ValueError):
             raise FeedError("Invalid forecast parameters.") from None
-        if not (1 <= count <= 120 and 0.1 <= temperature <= 2 and 0 < top_p <= 1 and 1 <= samples <= 5):
-            raise FeedError("Use 1–120 future candles, temperature 0.1–2, top-p above 0 up to 1, and 1–5 samples.")
-        df, info = feed.candles(ticker, interval)
+        try:
+            validate_forecast(ui.predictor, lookback, count, temperature, top_p, samples)
+        except ValueError as error:
+            raise FeedError(str(error)) from None
+        df, info = feed.candles(ticker, interval, max(history, lookback))
+        model_df = df.tail(lookback)
         future = future_timestamps(df["timestamps"].iloc[-1], interval, count)
         try:
-            pred = ui.predictor.predict(df=df.drop(columns="timestamps"), x_timestamp=df["timestamps"], y_timestamp=future, pred_len=count, T=temperature, top_p=top_p, sample_count=samples, verbose=False)
+            pred = ui.predictor.predict(df=model_df.drop(columns="timestamps"), x_timestamp=model_df["timestamps"], y_timestamp=future, pred_len=count, T=temperature, top_p=top_p, sample_count=samples, verbose=False)
         except Exception:
             # Request/credential details must never be reflected into the browser.
             raise FeedError("Kronos inference failed. Check model/device availability and retry.", 500) from None
-        if not np.isfinite(pred.to_numpy()).all():
+        if len(pred) != count or not np.isfinite(pred.to_numpy()).all():
             raise FeedError("Kronos returned non-finite predictions; results were not saved.", 500)
         prediction = records(pred.reset_index(names="timestamps"))
         result = dict(success=True, feed=info, chart=chart(df, ticker, pred), prediction_results=prediction,
-                      actual_data=[], has_comparison=False, forecast_anchor=info["last_candle"],
+                      candles=records(df), settings=dict(lookback=lookback, pred_len=count, sample_count=samples, temperature=temperature, top_p=top_p), actual_data=[], has_comparison=False, forecast_anchor=info["last_candle"],
                       message=f"{ticker}: forecasted {count} candles after the latest available completed candle. No future actual prices are known.")
         output = ROOT / "outputs" / "live"
         try:

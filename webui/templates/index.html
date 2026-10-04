@@ -6,6 +6,7 @@
     <title>Kronos Financial Prediction Web UI</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='chart_workbench.css') }}">
     <style>
         * {
             margin: 0;
@@ -21,7 +22,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1920px;
             margin: 0 auto;
             padding: 20px;
         }
@@ -45,7 +46,7 @@
 
         .main-content {
             display: grid;
-            grid-template-columns: 1fr 2fr;
+            grid-template-columns: minmax(290px, 350px) minmax(0, 1fr);
             gap: 30px;
             margin-bottom: 30px;
         }
@@ -446,6 +447,7 @@
         <div class="header">
             <h1>🚀 Kronos Financial Prediction Web UI</h1>
             <p>AI-based financial K-line data prediction analysis platform</p>
+            <div class="pdf-export-toolbar" data-html2canvas-ignore="true"><button id="download-ui-pdf" type="button">Download whole UI as PDF</button><span id="pdf-export-status" role="status"></span></div>
         </div>
 
         <div class="main-content">
@@ -533,20 +535,20 @@
                         </div>
                     </div>
                     
-                    <small class="form-text">Drag slider to select time window position for 520 data points, green area represents fixed 400+120 data point range</small>
+                    <small class="form-text">Drag slider to select time window position for the selected lookback and forecast lengths</small>
                 </div>
 
                 <!-- Prediction Parameters -->
                 <div class="form-group">
                     <label for="lookback">Lookback Window Size:</label>
-                    <input type="number" id="lookback" value="400" readonly>
-                    <small class="form-text">Fixed at 400 data points</small>
+                    <input type="number" id="lookback" value="400" min="16" max="512">
+                    <small class="form-text">Model context: base/small up to 512; mini up to 2,048 candles.</small>
                 </div>
 
                 <div class="form-group">
                     <label for="pred-len">Prediction Length:</label>
-                    <input type="number" id="pred-len" value="120" readonly>
-                    <small class="form-text">Fixed at 120 data points</small>
+                    <input type="number" id="pred-len" value="120" min="1" max="512">
+                    <small class="form-text">Up to the loaded model’s context limit; longer forecasts take more time.</small>
                 </div>
 
                 <!-- Prediction Quality Parameters -->
@@ -566,8 +568,8 @@
 
                 <div class="form-group">
                     <label for="sample-count">Sample Count:</label>
-                    <input type="number" id="sample-count" value="1" min="1" max="5" step="1">
-                    <small class="form-text">Generate multiple prediction samples to improve quality (recommended 1-3)</small>
+                    <input type="number" id="sample-count" value="1" min="1" max="20" step="1">
+                    <small class="form-text">Average 1–20 generated samples. More samples use more GPU memory and time.</small>
                 </div>
 
                 <button id="predict-btn" class="btn btn-success" disabled>
@@ -584,9 +586,11 @@
             <div class="chart-container">
                 <h2>Polygon live candles and forecast</h2>
                 <p id="live-forecast-note" class="form-text">Fetch candles from the Polygon panel to begin.</p>
-                <div id="live-chart" aria-label="Live market chart"></div>
+                <section class="chart-workspace" id="live-workspace"><div id="live-chart" aria-label="Live market chart"></div></section>
+                <section id="live-candle-data" class="forecast-candle-data" hidden></section>
                 <h2>📈 Prediction Results Chart</h2>
-                <div id="chart"></div>
+                <section class="chart-workspace" id="historical-workspace"><div id="chart"></div></section>
+                <section id="historical-candle-data" class="forecast-candle-data" hidden></section>
                 
                 <!-- Comparison Analysis -->
                 <div id="comparison-section" class="comparison-section" style="display: none;">
@@ -679,6 +683,7 @@
                 if (response.data.model_available) {
                     availableModels = response.data.models;
                     populateModelSelect();
+                    document.dispatchEvent(new Event('kronos-models-ready'));
                     console.log('✅ Available models loaded successfully:', availableModels);
                 } else {
                     console.warn('⚠️ Kronos model library not available');
@@ -916,8 +921,8 @@
             const startHandle = document.getElementById('start-handle');
             const selection = document.getElementById('slider-selection');
             
-            // Fixed window size of 520 data points
-            const windowSize = 520;
+            // Keep the selected candle window inside the dataset.
+            const windowSize = Number(document.getElementById('lookback').value) + Number(document.getElementById('pred-len').value);
             const totalRows = sliderData ? sliderData.totalRows : 1000;
             const windowPercentage = windowSize / totalRows;
             
@@ -940,8 +945,8 @@
             const endHandle = document.getElementById('end-handle');
             const selection = document.getElementById('slider-selection');
             
-            // Fixed window size of 520 data points
-            const windowSize = 520;
+            // Keep the selected candle window inside the dataset.
+            const windowSize = Number(document.getElementById('lookback').value) + Number(document.getElementById('pred-len').value);
             const totalRows = sliderData ? sliderData.totalRows : 1000;
             const windowPercentage = windowSize / totalRows;
             
@@ -978,25 +983,25 @@
             const endDate = new Date(endTime);
             
             // Update display information
-            document.getElementById('window-start').textContent = `Start: ${startDate.toLocaleDateString()}`;
-            document.getElementById('window-end').textContent = `End: ${endDate.toLocaleDateString()}`;
+            const startRow = Math.round(startPercentage * sliderData.totalRows);
+            document.getElementById('window-start').textContent = `Start row: ${startRow + 1}`;
+            document.getElementById('window-end').textContent = `End row: ${startRow + Number(document.getElementById('lookback').value) + Number(document.getElementById('pred-len').value)}`;
             
             // Display fixed window size
-            document.getElementById('window-size').textContent = `Window Size: 400 + 120 = 520 data points (fixed)`;
+            document.getElementById('window-size').textContent = `Window Size: ${document.getElementById('lookback').value} + ${document.getElementById('pred-len').value} candles`;
             
             // Input field values remain fixed
-            document.getElementById('lookback').value = 400;
-            document.getElementById('pred-len').value = 120;
+
         }
 
         // Update slider based on input fields
         function updateSliderFromInputs() {
             if (!sliderData) return;
             
-            // Fixed window size: 400 + 120 = 520 data points
-            const lookback = 400;
-            const predLen = 120;
-            const windowSize = lookback + predLen; // Fixed at 520
+            // Window follows the editable controls.
+            const lookback = Number(document.getElementById('lookback').value);
+            const predLen = Number(document.getElementById('pred-len').value);
+            const windowSize = lookback + predLen;
             
             // Calculate slider position
             const totalRows = sliderData.totalRows;
@@ -1008,7 +1013,7 @@
             }
             
             // Calculate slider position (default select first half of data)
-            const startPercentage = 0.1; // Start from 10%
+            const startPercentage = Math.max(0, Math.min(parseFloat(document.getElementById('start-handle').style.left) / 100 || 0, 1 - windowSize / totalRows));
             const endPercentage = startPercentage + (windowSize / totalRows);
             
             // Update handle positions
@@ -1078,7 +1083,7 @@
                     file_path: currentDataFile,
                     lookback: lookback,
                     pred_len: predLen,
-                    start_date: startDate.toISOString().slice(0, 16), // Format as YYYY-MM-DDTHH:MM
+                    start_index: Math.round(startPercentage * sliderData.totalRows),
                     temperature: temperature,
                     top_p: topP,
                     sample_count: sampleCount
@@ -1108,7 +1113,8 @@
         function displayPredictionResult(result) {
             // Display chart
             const chartData = JSON.parse(result.chart);
-            Plotly.newPlot('chart', chartData.data, chartData.layout);
+            ChartWorkbench.render('chart', chartData);
+            PredictionCandles.render('historical-candle-data', result);
             
             // Display comparison analysis (if actual data exists)
             if (result.has_comparison) {
@@ -1242,6 +1248,10 @@
             }
         }
     </script>
+    <script src="{{ url_for('static', filename='chart_math.js') }}"></script>
+    <script src="{{ url_for('static', filename='prediction_candles.js') }}"></script>
+    <script src="{{ url_for('static', filename='chart_workbench.js') }}"></script>
     <script src="{{ url_for('static', filename='polygon_live.js') }}"></script>
+    <script src="{{ url_for('static', filename='ui_pdf_export.js') }}"></script>
 </body>
 </html>

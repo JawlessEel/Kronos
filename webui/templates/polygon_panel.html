@@ -15,11 +15,14 @@
     </div>
     <div class="form-group">
         <label for="live-horizon">Future candles:</label>
-        <input id="live-horizon" type="number" min="1" max="120" value="30">
+        <input id="live-horizon" type="number" min="1" max="512" value="30">
     </div>
+    <div class="form-group"><label for="live-lookback">Model lookback candles:</label><input id="live-lookback" type="number" min="16" max="512" value="400"><small id="model-context-note" class="form-text">Base/small context: 512; mini: 2,048. Forecast length uses the same limit.</small></div>
+    <div class="form-group"><label for="live-history">Chart history candles:</label><input id="live-history" type="number" min="16" max="10000" value="1000"><small class="form-text">Display and indicators can use more history than model context. Availability depends on your subscription.</small></div>
     <button id="live-fetch" class="btn btn-secondary" type="button">Fetch latest candles</button>
     <button id="live-refresh" class="btn btn-secondary" type="button">Start 60-second refresh</button>
     <button id="live-predict" class="btn" type="button">Forecast latest candles</button>
     <p id="live-status" role="status" style="white-space:pre-line; overflow-wrap:anywhere">Checking Polygon connection settings...</p>
-    <p class="form-text">Forecast uses the newest 400 available candles and skips market closures. Auto-refresh updates candles only; it stops when this page is hidden, after three errors, or after four hours. Forecasts are saved under outputs/live.</p>
+    <p id="control-save-note" class="form-text">Control preferences use local browser storage.</p>
+    <p class="form-text">Forecast uses the selected model lookback and skips market closures. Auto-refresh updates candles only; it stops when this page is hidden, after three errors, or after four hours. Forecasts are saved under outputs/live.</p>
 </section>

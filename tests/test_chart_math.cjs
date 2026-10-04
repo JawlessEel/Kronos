@@ -1,0 +1,17 @@
+const assert = require('node:assert/strict');
+const math = require('../webui/static/chart_math.js');
+const close = (a,b) => assert.ok(Math.abs(a-b)<1e-10,`${a} != ${b}`);
+assert.deepEqual(math.average([1,2,3,4,5],3),[null,null,2,3,4]);
+assert.deepEqual(math.average([1,2,3,4,5],3,'EMA'),[null,null,2,3,4]);
+close(math.average([1,2,3,4,5],3,'WMA')[4],26/6);
+close(math.average([1,2,3,4,5],3,'RMA')[4],31/9);
+assert.deepEqual(math.average([1,2,null,4,5,6],3),[null,null,null,null,null,5]);
+assert.deepEqual(math.rsi([1,2,3,4,5],3),[null,null,null,100,100]);
+assert.deepEqual(math.rsi([5,4,3,2,1],3),[null,null,null,0,0]);
+assert.deepEqual(math.rsi([2,2,2,2,2],3),[null,null,null,50,50]);
+const bb = math.bands([1,2,3],3,2); close(bb.upper[2],2+2*Math.sqrt(2/3));
+const m = math.macd([1,2,3,4,5,6,7],2,3,2); close(m.line[6],0.5); close(m.signal[6],0.5); close(m.histogram[6],0);
+const bars=[['2026-10-02T15:50:00-04:00',10,2],['2026-10-02T15:55:00-04:00',20,1],['2026-10-05T09:30:00-04:00',30,1]].map(([timestamp,price,volume])=>({timestamp,high:price,low:price,close:price,volume}));
+assert.deepEqual(math.vwap(bars),[10,40/3,30]);
+assert.equal(math.source({open:1,high:5,low:1,close:3},'ohlc4'),2.5);
+console.log('Indicator formula, warm-up, and session reset checks passed.');
