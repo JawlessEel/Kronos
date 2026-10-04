@@ -1,0 +1,22 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Kronos settings adapter tests</title>
+<h1>Chrome settings adapter tests</h1><p>Local synthetic DOM fixture. This is not a model forecast or proof of TradingView integration.</p><pre id="results">Running…</pre>
+<script src="../extension/protocol.js"></script><script src="../extension/tradingview.js"></script>
+<script>
+(async()=>{
+const lines=[]; let dialog;
+const now=Date.now(); const payload={schema:'kronos-tradingview/1',engine:'kronos-local',targetSymbol:'OKX:BTCUSDT',timeframe:'1h',seconds:3600,session:'24x7',generatedAt:now,anchorTime:now-3600000,rows:[{t:now,o:100,h:102,l:99,c:101,quality:'OK'}]};
+function settings(name='Kronos Forecast Bridge',extras=0) {
+  const d=document.createElement('div'); d.setAttribute('role','dialog');d.setAttribute('data-name','indicator-properties-dialog');d.setAttribute('data-dialog-name',name);
+  const h=document.createElement('h2');h.textContent=name;d.append(h);
+  for(let i=0;i<=extras;i++){const a=document.createElement('textarea');a.value='untouched';d.append(a);}
+  const b=document.createElement('button');b.textContent='Ok';b.onclick=()=>{d.dataset.saved=d.querySelector('textarea').value;d.remove();};d.append(b);document.body.append(d);return d;
+}
+async function check(name,run){try{await run();lines.push('PASS '+name);}catch(e){lines.push('FAIL '+name+': '+e.message);}document.getElementById('results').textContent=lines.join('\n');}
+await check('fills only dedicated dialog and submits exact payload',async()=>{dialog=settings();let changed=false;dialog.querySelector('textarea').addEventListener('input',()=>changed=true);const result=await KronosTVAdapter.apply(payload);if(!result.ok||!changed||dialog.dataset.saved!==KronosTVContract.encode(payload))throw Error('Exact input/submit check failed');});
+await check('unrelated indicator remains untouched',async()=>{dialog=settings('Other Indicator');try{await KronosTVAdapter.apply(payload);throw Error('Expected rejection');}catch(e){if(e.message==='Expected rejection')throw e;}if(dialog.querySelector('textarea').value!=='untouched')throw Error('Other field changed');dialog.remove();});
+await check('ambiguous text areas stop before editing',async()=>{dialog=settings('Kronos Forecast Bridge',1);try{await KronosTVAdapter.apply(payload);throw Error('Expected rejection');}catch(e){if(!e.message.includes('More than one'))throw e;}if([...dialog.querySelectorAll('textarea')].some(a=>a.value!=='untouched'))throw Error('Ambiguous field changed');dialog.remove();});
+await check('duplicate dedicated dialogs are rejected',async()=>{dialog=settings();const duplicate=settings();try{await KronosTVAdapter.apply(payload);throw Error('Expected rejection');}catch(e){if(!e.message.includes('Multiple'))throw e;}dialog.remove();duplicate.remove();});
+await check('invalid forecast leaves setting unchanged',async()=>{dialog=settings();try{await KronosTVAdapter.apply({...payload,engine:'statistical'});throw Error('Expected rejection');}catch(e){if(!e.message.includes('real Kronos'))throw e;}if(dialog.querySelector('textarea').value!=='untouched')throw Error('Rejected payload was written');dialog.remove();});
+document.body.dataset.passed=String(lines.every(l=>l.startsWith('PASS')));
+})();
+</script></html>

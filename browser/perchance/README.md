@@ -2,6 +2,8 @@
 
 This directory contains the browser application, Perchance panels, real Kronos-mini runtime, and reproducible ONNX exporters. It is independent of the Python WebUI and native Apple companion work.
 
+For Chrome on Windows and macOS, see [the TradingView bridge](../chrome-bridge/README.md). It transfers forecast candles into the dedicated Pine overlay, with optional automatic submission of newly generated forecasts.
+
 ## Run the validated release
 
 Download [the complete WebGPU package](https://github.com/JawlessEel/Kronos/releases/tag/webgpu-mini-2026-10-04), extract it into a new directory, and follow its `README-WEBGPU.md`. The ZIP includes all four real model graphs and validation evidence.
