@@ -1,0 +1,80 @@
+<!-- Append the generated panel to Perchance's HTML panel. Keep the existing code. -->
+<meta charset="utf-8">
+<style>
+#kronosDownloads{margin:16px 0;padding:18px;border:1px solid #2c3c60;border-radius:14px;background:#0e1526;color:#e8eefb;font:14px/1.6 system-ui,sans-serif;text-align:left}
+#kronosDownloads h2{margin:0 0 8px;font-size:18px}#kronosDownloads p{margin:8px 0}
+#kronosDownloads .kd-actions{display:flex;gap:10px;flex-wrap:wrap}
+#kronosDownloads .kd-actions a,#kronosDownloads button{display:inline-block;background:#252f55;color:#fff;border:1px solid #536394;border-radius:8px;padding:9px 12px;text-decoration:none;font:inherit;cursor:pointer}
+#kronosDownloads summary{cursor:pointer;font-weight:600;margin-top:12px}
+#kronosDownloads textarea{width:100%;min-height:180px;background:#070b14;color:#e8eefb;font:12px/1.5 monospace;border:1px solid #536394;padding:10px}
+#kronosDownloads code{overflow-wrap:anywhere}#kronosDownloads .kd-note{color:#aebcd8;font-size:12px}
+</style>
+<section id="kronosDownloads" aria-labelledby="kdTitle">
+  <h2 id="kdTitle">TradingView indicator &amp; Chrome extension</h2>
+  <p>Show this generator's forecast on your TradingView chart. Use desktop Chrome on Windows or Mac. Install once, then send each forecast from the prediction panel.</p>
+  <div class="kd-actions">
+    <a id="kdZip">Download Chrome extension ZIP</a>
+    <a id="kdPine">Download Pine indicator</a>
+    <button id="kdCopy" type="button">Copy indicator code</button>
+    <a id="kdGuide">Download setup guide</a>
+  </div>
+  <p id="kdStatus" role="status" aria-live="polite">Preparing embedded downloads…</p>
+  <details open><summary>Setup: Windows &amp; Mac</summary>
+    <ol>
+      <li>Download and extract the ZIP into a folder you will keep. In Chrome, open <code>chrome://extensions</code>, enable <b>Developer mode</b>, select <b>Load unpacked</b>, and choose the <b>extension</b> folder containing <code>manifest.json</code>. Choose a folder, not the ZIP or a file. Pin <b>Kronos TradingView Bridge</b>.</li>
+      <li>Open your TradingView chart and Pine Editor. Create a <b>new Indicator</b>, paste the supplied code, save privately as <b>Kronos Forecast Bridge</b>, then <b>Add to chart</b>. Keep your other indicators.</li>
+      <li>Reload this generator and TradingView after installing the extension. Load market data, load the model, then generate a forecast.</li>
+      <li>In <b>TradingView · Chrome bridge</b>, match the exact exchange-qualified symbol (for example <code>OKX:BTCUSDT</code>) and the chart timeframe. Click <b>Send to Chrome bridge</b>.</li>
+      <li>Open the Chrome extension popup, select your TradingView chart tab, then click <b>Open indicator settings and apply</b>. Check the indicator's status table. Automatic apply is optional.</li>
+    </ol>
+  </details>
+  <details><summary>Manual fallback &amp; troubleshooting</summary>
+    <p>If the settings adapter fails, use <b>Copy TradingView data</b> in the generator and paste it into the indicator's <b>Forecast payload</b> input. If the extension reports no receiver, reload both tabs. Downloads blocked inside an iframe? Open the generator directly, or use the <a href="https://github.com/JawlessEel/Kronos/releases/tag/chrome-bridge-0.1.0" target="_blank" rel="noopener noreferrer">public bridge release</a>.</p>
+    <p>Indicator code is also available below. Select all and copy if clipboard access is blocked.</p>
+    <textarea id="kdCode" readonly aria-label="Kronos Pine indicator source" spellcheck="false"></textarea>
+  </details>
+  <p class="kd-note">Bridge __VERSION__ · ZIP SHA-256: <code>__SHA__</code></p>
+  <p class="kd-note">The extension stores forecast data in this Chrome profile and accesses Perchance, localhost, and TradingView chart pages. It does not place trades. The model runs in your browser; no desktop installer or Polygon key is required. Stock sessions and provider candle boundaries must match your chart. Forecast timestamps use UTC. TradingView UI changes can break automatic transfer. Chrome desktop installation is required; this extension cannot run in Chrome on iPhone.</p>
+</section>
+<script>
+(() => {
+  'use strict';
+  const panel = document.getElementById('kronosDownloads');
+  if (!panel || panel.dataset.ready) return;
+  panel.dataset.ready = 'true';
+  const pine = __PINE_JSON__;
+  const guide = __GUIDE_JSON__;
+  const status = panel.querySelector('#kdStatus');
+  const urls = [];
+  function link(id, data, type, name) {
+    const a = panel.querySelector(id);
+    const url = URL.createObjectURL(new Blob([data], {type}));
+    urls.push(url); a.href = url; a.download = name;
+  }
+  try {
+    const binary = atob(__ZIP_JSON__);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    link('#kdZip', bytes, 'application/zip', 'Kronos-TradingView-Extension-__VERSION__.zip');
+    link('#kdPine', pine, 'text/plain;charset=utf-8', 'Kronos-Forecast-Bridge.pine');
+    link('#kdGuide', guide, 'text/plain;charset=utf-8', 'Kronos-TradingView-Setup.txt');
+    panel.querySelector('#kdCode').value = pine;
+    status.textContent = 'Downloads are ready. Extract the ZIP before loading the extension.';
+  } catch (error) {
+    status.textContent = 'Could not prepare downloads: ' + error.message + '. Use the public bridge release link below.';
+    panel.querySelector('#kdCode').value = pine;
+  }
+  panel.querySelector('#kdCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(pine);
+      status.textContent = 'Indicator code copied. Paste into a new TradingView Pine indicator.';
+    } catch (error) {
+      const code = panel.querySelector('#kdCode');
+      code.closest('details').open = true; code.focus(); code.select();
+      status.textContent = 'Clipboard access was blocked. The indicator code is selected below; press Ctrl+C (Windows) or Command+C (Mac).';
+    }
+  });
+  window.addEventListener('pagehide', event => {
+    if (!event.persisted) urls.forEach(url => URL.revokeObjectURL(url));
+  }, {once:true});
+})();
+</script>
