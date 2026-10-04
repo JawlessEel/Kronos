@@ -171,7 +171,7 @@ const ChartWorkbench = (() => {
         const bottom=panes.length * 0.16;
         const axis={showgrid:config.grid,gridcolor:grid,zeroline:false,showspikes:config.crosshair,spikemode:'across',spikesnap:'cursor',spikecolor:text};
         const layout={paper_bgcolor:bg,plot_bgcolor:bg,font:{color:text,size:config.fontSize},autosize:true,height:document.fullscreenElement===state.workspace || state.workspace.classList.contains('chart-overlay')?Math.max(config.height,window.innerHeight-200):config.height,
-            margin:{l:70,r:30,t:20,b:100},showlegend:config.legend,legend:{orientation:'h',x:0,y:-0.12,bgcolor:bg,font:{color:text}},
+            margin:{l:70,r:70,t:20,b:100},showlegend:config.legend,legend:{orientation:'h',x:0,y:-0.12,bgcolor:bg,font:{color:text}},
             hovermode:'x',dragmode:'pan',uirevision:state.id + (state.result?.feed ? `${state.result.feed.ticker}-${state.result.feed.interval_minutes}` : ''), xaxis:{...axis,type:config.gaps?'date':'category',categoryorder:'array',categoryarray:[...new Set(x)],rangeslider:{visible:config.rangeSlider},anchor:'free',position:0},
             yaxis:{...axis,title:'Price',type:config.log?'log':'linear',domain:[bottom,1],fixedrange:false}};
         // Gapless bars retain original timestamps. Explicit labels avoid category
@@ -179,7 +179,8 @@ const ChartWorkbench = (() => {
         if (!config.gaps && x.length) {
             const unique=[...new Set(x)], stride=Math.max(1,Math.ceil(unique.length/7));
             layout.xaxis.tickvals=unique.filter((_,i)=>i%stride===0 || i===unique.length-1);
-            layout.xaxis.ticktext=layout.xaxis.tickvals.map(stamp=>new Date(stamp).toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
+            layout.xaxis.ticktext=layout.xaxis.tickvals.map(stamp=>new Date(stamp).toLocaleString(undefined,{timeZone:state.result?.feed?'America/New_York':undefined,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
+            layout.xaxis.title=state.result?.feed?'Candle start (ET)':'Candle start (source)';
         }
         panes.forEach((pane,i)=>{
             const n=i+2, key=`yaxis${n}`, axisName=`y${n}`, lower=bottom-(i+1)*0.16;

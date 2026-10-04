@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             const original=document.querySelector('.container');
             clone=original.cloneNode(true);
+            clone.setAttribute('aria-hidden','true'); clone.inert=true;
             // Copy current control state, not the initial HTML attribute values.
             const controls=original.querySelectorAll('input,select,textarea');
             clone.querySelectorAll('input,select,textarea').forEach((control,i)=>{
