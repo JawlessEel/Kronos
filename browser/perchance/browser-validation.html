@@ -1,0 +1,18 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Kronos browser inference validation</title>
+<style>body{font:16px system-ui;background:#111820;color:#eef3f9;max-width:1000px;margin:30px auto;padding:20px}button{padding:12px;margin:6px}pre{white-space:pre-wrap;overflow-wrap:anywhere}td,th{padding:5px 10px;text-align:right}table{border-collapse:collapse;width:100%}tr{border-bottom:1px solid #344354}</style>
+<h1>Kronos mini · browser WebGPU validation</h1><p>Real model weights. Completed public OKX BTC-USDT candles. No forecast request is sent to a server.</p>
+<button id="load">Load model</button><button id="verify">Run Python parity comparison</button><button id="sample">Run seeded sampled forecast</button><button id="cancel">Cancel / unload</button><button id="save">Download validation JSON</button>
+<pre id="status">Idle</pre><div id="result"></div>
+<script src="src/kronos-local/kronos-engine.js"></script><script>
+const status=document.getElementById('status');let report;
+load.onclick=async()=>{try{await KronosLocal.loadModel('kronos-mini',p=>status.textContent='Loading '+p.file+' '+Math.round(p.frac*100)+'%');status.textContent='Ready: four WebGPU graph smoke tests passed';}catch(e){status.textContent=e.stack;}};
+async function run(greedy){try{const fixture=await(await fetch('src/kronos-local/parity/python-reference.json')).json();status.textContent='Predicting';const start=performance.now();const response=await KronosLocal.predict({...fixture.request,diagnostics:true,greedy,top_p:greedy?1:0.9},p=>status.textContent='Generating candle '+p.step+' / '+p.of);const seconds=(performance.now()-start)/1000;
+let maxError=0,passed=true;
+response.rows.forEach((row,i)=>['o','h','l','c','v','turnover'].forEach((key,j)=>{const actual=row[key],expected=fixture.expected[i][j],error=Math.abs(actual-expected);maxError=Math.max(maxError,error);if(error>0.003+Math.abs(expected)*0.0002)passed=false;}));
+const stageErrors={};if(greedy&&fixture.diagnostics)for(const [k,values] of Object.entries(fixture.diagnostics)){stageErrors[k]={maxAbsError:Math.max(...values.map((v,i)=>Math.abs(v-response.diagnostics[k][i]))),mismatches:values.filter((v,i)=>v!==response.diagnostics[k][i]).length};}
+report={mode:greedy?'greedy-parity':'seeded-sampling',passed:greedy?passed:null,seconds,maxAbsError:greedy?maxError:null,stageErrors,response};status.textContent=JSON.stringify({...report,response:undefined},null,2);
+document.getElementById('result').innerHTML='<table><thead><tr><th>UTC candle start</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead><tbody>'+response.rows.map((r,i)=>'<tr><td>'+new Date(response.times[i]).toISOString()+'</td>'+['o','h','l','c','v'].map(k=>'<td>'+r[k].toFixed(3)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+}catch(e){status.textContent=e.stack;}}
+verify.onclick=()=>run(true);sample.onclick=()=>run(false);cancel.onclick=()=>{KronosLocal.cancelPredict();status.textContent='Cancelled and unloaded';};
+save.onclick=()=>{if(!report)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));a.download='kronos-browser-validation-'+new Date().toISOString().replace(/[:.]/g,'-')+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);};
+</script></html>

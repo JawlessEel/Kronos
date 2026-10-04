@@ -1,0 +1,16 @@
+// ============================================================================
+// CRYPTO PULSE — pro crypto analysis terminal for Perchance
+// Free data only: Binance spot+futures, CoinGecko, Fear&Greed, mempool.space,
+// CoinDesk/Cointelegraph/Decrypt RSS, Reddit public JSON. AI via ai-text-plugin.
+// ============================================================================
+
+$meta
+  title = Crypto Pulse — Pro Analysis Terminal
+  description = Live crypto dashboard: MA chart with Fib + support/resistance + leverage zones, funding/OI/long-short, news, social, financials and an AI analyst. 100% free data.
+  image = https://user.uploads.dev/file/60ba6e38614adb3f4fc1fdef5fced878.jpg
+  tags = crypto, bitcoin, trading, analysis, dashboard, ai
+  header
+    mode = minimal
+
+generateText = {import:ai-text-plugin}
+superFetch = {import:super-fetch-plugin}

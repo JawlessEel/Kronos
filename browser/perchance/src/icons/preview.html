@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Othala rune — asset preview</title>
+<style>
+  body { margin:0; font-family: system-ui, sans-serif; }
+  section { padding: 28px 24px; }
+  .dark  { background:#0A0D14; color:#EEF0F6; }
+  .light { background:#F6F7FB; color:#1B1F2A; }
+  h2 { font-size:14px; letter-spacing:.08em; text-transform:uppercase; opacity:.65; margin:0 0 18px; }
+  .row { display:flex; flex-wrap:wrap; gap:26px; align-items:flex-end; }
+  figure { margin:0; text-align:center; }
+  figcaption { font-size:11px; opacity:.6; margin-top:8px; }
+  .sz16{width:16px} .sz32{width:32px} .sz64{width:64px} .sz96{width:96px} .sz180{width:180px}
+  svg, img { display:block; }
+</style>
+</head>
+<body>
+
+<section class="dark">
+  <h2>Dark background — dark-theme gradient</h2>
+  <div class="row">
+    <figure><img class="sz16" src="png/othala-16.png" alt=""><figcaption>16</figcaption></figure>
+    <figure><img class="sz32" src="png/othala-32.png" alt=""><figcaption>32</figcaption></figure>
+    <figure><img class="sz64" src="png/othala-64.png" alt=""><figcaption>64</figcaption></figure>
+    <figure><img class="sz96" src="png/othala-128.png" alt=""><figcaption>128</figcaption></figure>
+    <figure><img class="sz180" src="png/othala-256.png" alt=""><figcaption>256</figcaption></figure>
+    <figure><img class="sz180" src="png/othala-appicon-180.png" alt=""><figcaption>app icon 180</figcaption></figure>
+  </div>
+</section>
+
+<section class="light">
+  <h2>Light background — the theme-aware SVG (switches via prefers-color-scheme)</h2>
+  <div class="row">
+    <figure><img class="sz16" src="othala-rune.svg" alt=""><figcaption>theme-aware SVG</figcaption></figure>
+    <figure><img class="sz64" src="othala-rune.svg" alt=""><figcaption>theme-aware SVG</figcaption></figure>
+    <figure><img class="sz96" src="othala-rune-light.svg" alt=""><figcaption>light gradient</figcaption></figure>
+    <figure style="color:#4558E8"><img class="sz96" src="othala-rune-currentColor.svg" alt=""><figcaption>currentColor</figcaption></figure>
+    <figure><img class="sz96" src="othala-rune-animated.svg" alt=""><figcaption>animated (glow)</figcaption></figure>
+  </div>
+</section>
+
+</body>
+</html>

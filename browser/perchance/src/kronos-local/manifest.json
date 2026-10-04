@@ -1,0 +1,55 @@
+{
+  "schema": 2,
+  "runtime": {
+    "onnxruntimeWeb": "1.22.0",
+    "url": "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.webgpu.min.mjs"
+  },
+  "models": [
+    {
+      "id": "kronos-mini",
+      "tokenizer": "Kronos-Tokenizer-2k",
+      "status": "validated",
+      "browserDefaults": {
+        "lookback": 256,
+        "horizon": 24,
+        "samples": 1
+      },
+      "maxContext": 2048,
+      "files": [
+        {
+          "name": "tokenizer-encode",
+          "url": "./models/tokenizer-encode.onnx",
+          "bytes": 7989606,
+          "sha256": "0592dcd296540e6a5b9c29e459cc5183319c277be78736389a9ae6d970b8696a"
+        },
+        {
+          "name": "tokenizer-decode",
+          "url": "./models/tokenizer-decode.onnx",
+          "bytes": 7989964,
+          "sha256": "e444228ac31254e9deac5cfbf8437cfc87ed86b039b6ad713baa0964186b82df"
+        },
+        {
+          "name": "predictor-s1",
+          "url": "./models/predictor-s1.onnx",
+          "bytes": 14442515,
+          "sha256": "d9b4caafaac648ed3352696171cb908451d3f87a7c40a681198f70045bdccd69"
+        },
+        {
+          "name": "predictor-s2",
+          "url": "./models/predictor-s2.onnx",
+          "bytes": 3173800,
+          "sha256": "bf4f4aef72ae841298933deadc12102ceb1ca62bde6f44d7aab944a71cc60976"
+        }
+      ],
+      "validation": {
+        "date": "2026-10-04",
+        "browser": "Chrome 154.0.8037.93 on ASUS",
+        "fixture": "parity/python-reference.json",
+        "greedy256To24Passed": true,
+        "browserReport": "parity/browser-greedy.json",
+        "publicHostingVerified": false,
+        "iPhoneHardwareVerified": false
+      }
+    }
+  ]
+}

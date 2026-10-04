@@ -1,0 +1,28 @@
+<!-- Othala rune — UTTERLY loader mark: rise-and-settle entry, then a slow breathing glow.
+     Set --utterly-glow to the line colour for the drop-shadow. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" fill="none" class="utterly-anim">
+  <style>
+    :root { --utterly-glow: rgba(255, 194, 75, 0.38); }
+    .utterly-anim { overflow: visible; }
+    .utterly-mark {
+      transform-origin: 48px 48px;
+      animation: utterlyRise 0.62s cubic-bezier(0.34, 1.56, 0.64, 1) both,
+                 utterlyGlow 3.4s ease-in-out 0.62s infinite;
+    }
+    @keyframes utterlyRise {
+      from { transform: translateY(-6px) scale(0.72); }
+      to   { transform: translateY(0) scale(1); }
+    }
+    @keyframes utterlyGlow {
+      0%, 100% { filter: drop-shadow(0 0 3px var(--utterly-glow)); }
+      50%      { filter: drop-shadow(0 0 11px var(--utterly-glow)); }
+    }
+  </style>
+  <defs>
+    <linearGradient id="utterlyGrad" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFC24B"/>
+      <stop offset="1" stop-color="#FF3D7F"/>
+    </linearGradient>
+  </defs>
+  <path class="utterly-mark" fill="url(#utterlyGrad)" fill-rule="evenodd" d="M48 3 L83.48 38.16 L58.81 63.32 L67.52 71.87 L78.32 61.39 L88.32 71.87 L67.52 93 L48 73.97 L28.48 93 L7.68 71.87 L17.68 61.39 L28.48 71.87 L37.19 63.32 L12.52 38.16 Z M48 23.97 L62.36 38.32 L48 52.68 L33.64 38.32 Z"/>
+</svg>
