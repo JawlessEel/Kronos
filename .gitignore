@@ -74,3 +74,11 @@ venv.bak/
 temp/
 tmp/
 .python-version
+
+# Local Windows installation and trial outputs
+.cache/
+.venv-rebuild/
+models/
+data/
+outputs/
+webui/prediction_results/prediction_2026*.json
