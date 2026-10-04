@@ -1,6 +1,6 @@
 # Kronos iPhone and Apple Watch
 
-Native SwiftUI source and an XcodeGen project specification. This stage has backend tests on Windows; an Xcode build and physical-device validation are still required. No Apple app has been installed by this checkout.
+Native SwiftUI source and an XcodeGen project specification. Backend tests passed on Windows and Apple Silicon macOS. XcodeGen successfully generated the project on the Mac, and the Foundation snapshot contract tests compiled and passed there. A complete Xcode app build and physical-device validation are still required. No Apple app has been installed by this checkout.
 
 The phone connects to the Mac's authenticated private HTTPS dashboard, loads a server model, reads saved forecasts, and explicitly generates a forecast through today's regular-session close. Dashboard access is stored in Keychain; the Polygon credential stays on the server. A separate comma-separated Kronos watchlist lets you choose the same symbols you follow in Stocks.
 
@@ -18,6 +18,7 @@ xcrun --sdk iphoneos --show-sdk-version
 xcrun --sdk watchos --show-sdk-version
 command -v xcodegen
 cd apple
+bash test_snapshot.sh
 xcodegen generate --spec project.yml
 xcodebuild -list -project KronosApple.xcodeproj
 xcodebuild -project KronosApple.xcodeproj -scheme KronosPhone -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
