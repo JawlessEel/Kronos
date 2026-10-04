@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Kronos TradingView Bridge",
+  "version": "0.1.0",
+  "description": "Transfer real local Kronos forecasts into the dedicated TradingView Pine overlay.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.tradingview.com/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_popup": "popup.html", "default_title": "Kronos forecast bridge"},
+  "content_scripts": [
+    {"matches": ["http://127.0.0.1/*", "http://localhost/*", "https://perchance.org/*", "https://*.perchance.org/*"], "all_frames": true, "js": ["protocol.js", "source.js"]},
+    {"matches": ["https://www.tradingview.com/chart/*"], "js": ["protocol.js", "tradingview.js"]}
+  ]
+}

@@ -1,0 +1,135 @@
+//@version=6
+indicator("Kronos Forecast Bridge", overlay=true, max_lines_count=500, max_boxes_count=150, max_labels_count=10)
+
+payload = input.text_area("", "Forecast payload", tooltip="Chrome bridge fills this field. You can also paste Copy TradingView data from Kronos.")
+showCandles = input.bool(true, "Predicted candles")
+showClose = input.bool(true, "Predicted close path")
+showLevels = input.bool(true, "Predicted high / low")
+maxAgeHours = input.int(24, "Maximum forecast age (hours)", minval=1, maxval=336)
+hideExpired = input.bool(true, "Hide ended forecast")
+upColor = input.color(color.aqua, "Up forecast color")
+downColor = input.color(color.fuchsia, "Down forecast color")
+var array<line> paths = array.new<line>()
+var array<box> bodies = array.new<box>()
+var array<label> labels = array.new<label>()
+var table info = table.new(position.top_right, 2, 4, bgcolor=color.new(color.black, 15))
+
+if barstate.islast
+    for item in paths
+        line.delete(item)
+    for item in bodies
+        box.delete(item)
+    for item in labels
+        label.delete(item)
+    array.clear(paths)
+    array.clear(bodies)
+    array.clear(labels)
+    string error = ""
+    string symbol = ""
+    string session = ""
+    int intervalMs = na
+    int generated = na
+    int anchor = na
+    array<int> times = array.new<int>()
+    array<float> opens = array.new<float>()
+    array<float> highs = array.new<float>()
+    array<float> lows = array.new<float>()
+    array<float> closes = array.new<float>()
+    array<bool> flags = array.new<bool>()
+    array<string> records = str.split(str.trim(payload), "\n")
+    if str.length(str.trim(payload)) == 0
+        error := "Send a forecast from Kronos"
+    else if array.size(records) < 2 or array.size(records) > 121
+        error := "Payload needs 1–120 candles"
+    else
+        array<string> header = str.split(array.get(records, 0), "|")
+        if array.size(header) != 6
+            error := "Invalid payload header"
+        else if array.get(header, 0) != "KRONOS1"
+            error := "Unsupported payload version"
+        else
+            symbol := array.get(header, 1)
+            float seconds = str.tonumber(array.get(header, 2))
+            generated := int(str.tonumber(array.get(header, 3)))
+            anchor := int(str.tonumber(array.get(header, 4)))
+            session := str.trim(array.get(header, 5))
+            intervalMs := int(seconds * 1000)
+            if na(seconds) or na(generated) or na(anchor) or seconds <= 0 or generated > timenow + 300000
+                error := "Invalid header timestamps"
+            else if syminfo.tickerid != symbol
+                error := "Symbol mismatch: forecast " + symbol
+            else if timeframe.in_seconds() != seconds
+                error := "Timeframe mismatch: forecast " + str.tostring(seconds / 60) + " minutes"
+            else if session != "regular" and session != "24x7"
+                error := "Invalid forecast session"
+            else if session == "regular" and syminfo.session != session.regular
+                error := "Select regular-session chart data"
+            else if timenow - generated > maxAgeHours * 3600000
+                error := "Forecast is stale; regenerate"
+            if error == ""
+                int previous = anchor
+                for i = 1 to array.size(records) - 1
+                    array<string> fields = str.split(str.trim(array.get(records, i)), ",")
+                    if array.size(fields) != 6
+                        error := "Invalid candle row " + str.tostring(i)
+                        break
+                    int t = int(str.tonumber(array.get(fields, 0)))
+                    float o = str.tonumber(array.get(fields, 1))
+                    float h = str.tonumber(array.get(fields, 2))
+                    float l = str.tonumber(array.get(fields, 3))
+                    float c = str.tonumber(array.get(fields, 4))
+                    float flag = str.tonumber(array.get(fields, 5))
+                    if na(t) or na(o) or na(h) or na(l) or na(c) or na(flag) or t <= previous or math.min(o, h, l, c) <= 0 or (flag != 0 and flag != 1)
+                        error := "Invalid prices/time in row " + str.tostring(i)
+                        break
+                    array.push(times, t)
+                    array.push(opens, o)
+                    array.push(highs, h)
+                    array.push(lows, l)
+                    array.push(closes, c)
+                    array.push(flags, flag != 0 or h < math.max(o, c) or l > math.min(o, c) or h < l)
+                    previous := t
+                if error == "" and hideExpired and array.last(times) + intervalMs <= timenow
+                    error := "Forecast horizon ended; regenerate"
+    float predictedHigh = na
+    float predictedLow = na
+    int highTime = na
+    int lowTime = na
+    int flagged = 0
+    if error == ""
+        for i = 0 to array.size(times) - 1
+            int t = array.get(times, i)
+            float o = array.get(opens, i)
+            float h = array.get(highs, i)
+            float l = array.get(lows, i)
+            float c = array.get(closes, i)
+            bool flag = array.get(flags, i)
+            color shade = c >= o ? upColor : downColor
+            if flag
+                flagged += 1
+            else
+                if na(predictedHigh) or h > predictedHigh
+                    predictedHigh := h
+                    highTime := t
+                if na(predictedLow) or l < predictedLow
+                    predictedLow := l
+                    lowTime := t
+                if showCandles
+                    array.push(paths, line.new(t, l, t, h, xloc=xloc.bar_time, color=shade))
+                    array.push(bodies, box.new(t - int(intervalMs * 0.28), math.max(o, c), t + int(intervalMs * 0.28), math.min(o, c), xloc=xloc.bar_time, border_color=shade, bgcolor=color.new(shade, 75)))
+            if showClose and i > 0
+                array.push(paths, line.new(array.get(times, i - 1), array.get(closes, i - 1), t, c, xloc=xloc.bar_time, color=color.orange, width=2, style=line.style_dashed))
+        if showLevels and not na(predictedHigh)
+            int lastTime = array.last(times) + intervalMs
+            array.push(paths, line.new(array.first(times), predictedHigh, lastTime, predictedHigh, xloc=xloc.bar_time, color=upColor, style=line.style_dotted))
+            array.push(paths, line.new(array.first(times), predictedLow, lastTime, predictedLow, xloc=xloc.bar_time, color=downColor, style=line.style_dotted))
+            array.push(labels, label.new(highTime, predictedHigh, "Pred H " + str.tostring(predictedHigh, format.mintick) + "\n" + str.format_time(highTime, "MMM dd HH:mm", "UTC") + " UTC", xloc=xloc.bar_time, style=label.style_label_down, color=color.new(upColor, 65), textcolor=color.white))
+            array.push(labels, label.new(lowTime, predictedLow, "Pred L " + str.tostring(predictedLow, format.mintick) + "\n" + str.format_time(lowTime, "MMM dd HH:mm", "UTC") + " UTC", xloc=xloc.bar_time, style=label.style_label_up, color=color.new(downColor, 65), textcolor=color.white))
+    table.cell(info, 0, 0, "Kronos forecast", text_color=color.white)
+    table.cell(info, 1, 0, symbol, text_color=color.white)
+    table.cell(info, 0, 1, "Generated UTC", text_color=color.silver)
+    table.cell(info, 1, 1, na(generated) ? "—" : str.format_time(generated, "yyyy-MM-dd HH:mm", "UTC"), text_color=color.white)
+    table.cell(info, 0, 2, "Pred H / L", text_color=color.silver)
+    table.cell(info, 1, 2, na(predictedHigh) ? "—" : str.tostring(predictedHigh, format.mintick) + " / " + str.tostring(predictedLow, format.mintick), text_color=color.white)
+    table.cell(info, 0, 3, "Status", text_color=color.silver)
+    table.cell(info, 1, 3, error != "" ? error : flagged > 0 ? str.tostring(flagged) + " flagged candles hidden; close path retained" : "Model estimates · " + session + " · match source venue/session", text_color=error != "" or flagged > 0 ? color.orange : color.aqua)

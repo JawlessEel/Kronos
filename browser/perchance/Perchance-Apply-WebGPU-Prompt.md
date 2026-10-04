@@ -7,6 +7,7 @@ Apply these complete updated sources from the package:
 - `index.html` → HTML panel, retaining all existing plugin and interface integration.
 - `top-panel.txt` → lists panel, preserving the Perchance imports and metadata.
 - `src/pulse-workbench.js` → workbench module.
+- `src/tradingview-contract.js` and `src/tradingview-bridge.js` → Chrome forecast transfer, loaded after the workbench script.
 - `src/kronos-local/` → engine, preprocessing, worker, manifest, four model graphs, exporter, parity evidence, and documentation.
 
 Review the actual current generator against this package first so newer edits are not lost. The full source ZIP also preserves the original unrelated modules/icons. Do not overwrite them with older versions when only the named runtime/workbench files need changing.
