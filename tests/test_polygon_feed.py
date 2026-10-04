@@ -114,7 +114,7 @@ def test_live_endpoint_uses_only_history_and_future_calendar(monkeypatch, tmp_pa
     assert client.post("/api/live/predict", json={"pred_len": 0}).status_code == 400
 
 
-@pytest.mark.parametrize("ticker,interval", [("../.env", 5), ("C:XAUUSD", 5), ("SPY", 60)])
+@pytest.mark.parametrize("ticker,interval", [("../.env", 5), ("C:XAUUSD", 5), ("SPY", 30)])
 def test_invalid_selection(ticker, interval):
     with pytest.raises(live.FeedError):
         live.selection(ticker, interval)

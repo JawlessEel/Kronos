@@ -17,7 +17,7 @@ PAGE = '''<!doctype html><html lang="en"><meta name="viewport" content="width=de
 def configure_access(app, token):
     if not token or len(token) < 32:
         raise ValueError('Authenticated mode requires KRONOS_ACCESS_TOKEN with at least 32 characters in private .env.')
-    app.config.update(SECRET_KEY=hashlib.sha256(token.encode()).digest(),
+    app.config.update(KRONOS_AUTHENTICATED=True, SECRET_KEY=hashlib.sha256(token.encode()).digest(),
                       SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Strict',
                       SESSION_COOKIE_SECURE=True, PERMANENT_SESSION_LIFETIME=timedelta(hours=12))
     attempts = OrderedDict()

@@ -4,6 +4,9 @@ const KronosPresets = (() => {
     const ids=['model-select','device-select','live-ticker','live-interval','live-history','live-lookback','live-horizon','lookback','pred-len','temperature','top-p','sample-count'];
     const base={'model-select':'kronos-base','live-ticker':'SPY','live-interval':'5','live-history':'1000','live-lookback':'400','live-horizon':'120',lookback:'400','pred-len':'120',temperature:'0.6','top-p':'0.9','sample-count':'1'};
     const builtins=[
+        {name:'Bitcoin 1 hour',controls:{...base,'live-ticker':'X:BTCUSD','live-interval':'60','live-history':'400','live-horizon':'24'},chart:{volume:true,mas:[{type:'EMA',period:20,color:'#f59e0b'},{type:'EMA',period:50,color:'#38bdf8'}]}},
+        {name:'Bitcoin 4 hours',controls:{...base,'live-ticker':'X:BTCUSD','live-interval':'240','live-history':'400','live-horizon':'30'},chart:{volume:true}},
+        {name:'Ethereum daily',controls:{...base,'live-ticker':'X:ETHUSD','live-interval':'1440','live-history':'400','live-horizon':'30'},chart:{volume:true}},
         {name:'SPY short horizon',controls:{...base,'live-interval':'1','live-horizon':'30'},chart:{volume:true,mas:[{type:'EMA',period:9,color:'#f59e0b'},{type:'EMA',period:21,color:'#38bdf8'}]}},
         {name:'SPY trend view',controls:base,chart:{volume:true,rsi:true,mas:[{type:'SMA',period:20,color:'#f59e0b'},{type:'EMA',period:50,color:'#38bdf8'},{type:'SMA',period:200,color:'#a78bfa'}]}},
         {name:'Compact phone view',controls:{...base,'live-history':'400','live-horizon':'60'},chart:{height:450,fontSize:12,volume:false,rsi:false,mas:[{type:'EMA',period:20,color:'#f59e0b'}]}}
