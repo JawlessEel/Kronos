@@ -7,9 +7,14 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 import torch.distributed as dist
 
-sys.path.append('../')
-from model import Kronos, KronosTokenizer, KronosPredictor
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FINETUNE_DIR = os.path.dirname(os.path.abspath(__file__))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+if FINETUNE_DIR not in sys.path:
+    sys.path.insert(0, FINETUNE_DIR)
 
+from model import Kronos, KronosTokenizer, KronosPredictor
 from config_loader import CustomFinetuneConfig
 from finetune_tokenizer import train_tokenizer, set_seed, setup_logging as setup_tokenizer_logging
 from finetune_base_model import train_model, create_dataloaders, setup_logging as setup_basemodel_logging
@@ -30,6 +35,8 @@ class SequentialTrainer:
         if self.config.use_cuda and torch.cuda.is_available():
             torch.cuda.set_device(self.local_rank)
             device = torch.device(f"cuda:{self.local_rank}")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
         else:
             device = torch.device("cpu")
         

@@ -1,4 +1,4 @@
-"""Server-side Polygon candles and forecasts for US regular stock sessions."""
+"""Server-side Polygon candles and forecasts for stocks and USD crypto pairs."""
 from datetime import timedelta
 import json
 import os
@@ -20,7 +20,19 @@ from webui.forecast_settings import validate_forecast, history_length
 ROOT = Path(__file__).resolve().parents[1]
 CALENDAR = mcal.get_calendar("NYSE")
 TZ = "America/New_York"
-INTERVALS = (1, 5, 15)
+INTERVALS = (1, 5, 15, 60, 240, 1440)
+
+
+def is_crypto(ticker):
+    return ticker.startswith('X:')
+
+
+def provider_interval(ticker, interval):
+    if interval == 1440:
+        return 1, 'day'
+    if interval >= 60:
+        return (interval // 60, 'hour') if is_crypto(ticker) else (30, 'minute')
+    return interval, 'minute'
 
 
 class FeedError(Exception):
@@ -40,19 +52,19 @@ def settings():
 
 def selection(ticker, interval):
     ticker = str(ticker).strip().upper()
-    if not re.fullmatch(r"[A-Z][A-Z0-9.\-]{0,14}", ticker):
-        raise FeedError("Enter a US stock/ETF symbol such as SPY or AAPL.")
+    if not re.fullmatch(r"(?:[A-Z][A-Z0-9.\-]{0,14}|X:[A-Z0-9]{2,20}USD)", ticker):
+        raise FeedError("Enter a US stock/ETF symbol (SPY) or USD crypto pair (X:BTCUSD, X:ETHUSD).")
     try:
         interval = int(interval)
     except (ValueError, TypeError):
-        raise FeedError("Candle interval must be 1, 5, or 15 minutes.") from None
+        raise FeedError("Choose 1m, 5m, 15m, 1h, 4h, or 1d candles.") from None
     if interval not in INTERVALS:
-        raise FeedError("Candle interval must be 1, 5, or 15 minutes.")
+        raise FeedError("Choose 1m, 5m, 15m, 1h, 4h, or 1d candles.")
     return ticker, interval
 
 
-def normalize_bars(results, interval, now, count=400):
-    """Discard unfinished and extended-hours bars without inventing missing candles."""
+def normalize_bars(results, interval, now, count=400, ticker='SPY'):
+    """Keep completed market-specific bars without inventing missing candles."""
     if not results:
         raise FeedError("No candles returned. Check the symbol and your data subscription.", 422)
     try:
@@ -73,26 +85,66 @@ def normalize_bars(results, interval, now, count=400):
     except (KeyError, ValueError, TypeError, OverflowError):
         raise FeedError("Provider returned malformed candle data; no forecast was generated.", 502) from None
     df = df.sort_values("timestamps").drop_duplicates("timestamps", keep="last")
-    schedule = CALENDAR.schedule(start_date=df["timestamps"].min().date(), end_date=df["timestamps"].max().date())
-    keep = pd.Series(False, index=df.index)
-    end = df["timestamps"] + pd.Timedelta(minutes=interval)
-    for session in schedule.itertuples():
-        keep |= (df["timestamps"] >= session.market_open) & (end <= session.market_close) & (end <= now)
-    df = df.loc[keep, ["timestamps", "open", "high", "low", "close", "volume", "amount"]].tail(count).reset_index(drop=True)
+    crypto = is_crypto(ticker)
+    if crypto or interval == 1440:
+        if crypto:
+            completed = df['timestamps'] + pd.Timedelta(minutes=interval) <= now
+        else:
+            # Provider stock daily bars span the ET calendar date, including
+            # eligible extended-hours trades. Wait until that day is finished.
+            local = df['timestamps'].dt.tz_convert(TZ)
+            completed = (local + pd.DateOffset(days=1)).dt.tz_convert('UTC') <= now
+        df = df.loc[completed]
+    else:
+        df = regular_bars(df, interval, now)
+    df = df.loc[:, ["timestamps", "open", "high", "low", "close", "volume", "amount"]].tail(count).reset_index(drop=True)
     if len(df) < count:
-        raise FeedError(f"Only {len(df)} completed regular-session candles are available; {count} are required. Try another interval/symbol or check your subscription.", 422)
-    df["timestamps"] = df["timestamps"].dt.tz_convert(TZ)
+        raise FeedError(f"Only {len(df)} completed candles are available; {count} are required. Try less history, another timeframe/symbol, or check your subscription.", 422)
+    df["timestamps"] = df["timestamps"].dt.tz_convert('UTC' if crypto else TZ)
     return df
 
 
-def future_timestamps(last, interval, count):
+def regular_bars(df, interval, now):
+    schedule = CALENDAR.schedule(start_date=df["timestamps"].min().date(), end_date=df["timestamps"].max().date())
+    keep = pd.Series(False, index=df.index)
+    base_interval = 30 if interval >= 60 else interval
+    end = df["timestamps"] + pd.Timedelta(minutes=base_interval)
+    for session in schedule.itertuples():
+        keep |= (df["timestamps"] >= session.market_open) & (end <= session.market_close) & (end <= now)
+    df = df.loc[keep]
+    if interval < 60:
+        return df
+    rows = []
+    # Build regular-session 1h/4h bars from provider 30m bars, anchored at
+    # 09:30 ET. The final bar ends at actual close, including early closes.
+    for session in schedule.itertuples():
+        for start in pd.date_range(session.market_open, session.market_close, freq=f'{interval}min', inclusive='left'):
+            finish = min(start + pd.Timedelta(minutes=interval), session.market_close)
+            if finish > now:
+                continue
+            group = df.loc[(df.timestamps >= start) & (df.timestamps < finish)]
+            expected = pd.date_range(start, finish, freq='30min', inclusive='left')
+            if list(group.timestamps) != list(expected):
+                continue  # Never fill missing traded bars or incomplete history pages.
+            rows.append(dict(timestamps=start, open=group.open.iloc[0], high=group.high.max(), low=group.low.min(), close=group.close.iloc[-1], volume=group.volume.sum(), amount=group.amount.sum()))
+    return pd.DataFrame(rows, columns=df.columns)
+
+
+def future_timestamps(last, interval, count, ticker='SPY'):
     """Use NYSE holidays, early closes and DST for the forecast calendar."""
     last = pd.Timestamp(last).tz_convert("UTC")
-    schedule = CALENDAR.schedule(start_date=last.date(), end_date=last.date() + timedelta(days=365))
+    if is_crypto(ticker):
+        return pd.Series(pd.date_range(last + pd.Timedelta(minutes=interval), periods=count, freq=f'{interval}min'), name='timestamps')
+    schedule = CALENDAR.schedule(start_date=last.date(), end_date=last.date() + timedelta(days=max(365, count * 2)))
     times = []
     step = pd.Timedelta(minutes=interval)
     for session in schedule.itertuples():
-        candidates = pd.date_range(session.market_open, session.market_close - step, freq=step)
+        if interval == 1440:
+            candidates = pd.DatetimeIndex([session.market_open.tz_convert(TZ).normalize().tz_convert('UTC')])
+        elif interval >= 60:
+            candidates = pd.date_range(session.market_open, session.market_close, freq=step, inclusive='left')
+        else:
+            candidates = pd.date_range(session.market_open, session.market_close - step, freq=step)
         times.extend(candidates[candidates > last])
         if len(times) >= count:
             return pd.Series(pd.DatetimeIndex(times[:count]).tz_convert(TZ), name="timestamps")
@@ -103,14 +155,17 @@ def metadata(df, ticker, interval, now, provider_status, fetched_at):
     today = now.tz_convert(TZ).date()
     schedule = CALENDAR.schedule(start_date=today, end_date=today)
     opened = bool(len(schedule) and schedule.iloc[0].market_open <= now < schedule.iloc[0].market_close)
+    crypto = is_crypto(ticker)
     last = df["timestamps"].iloc[-1]
     return {"ticker": ticker, "interval_minutes": interval, "rows": len(df),
             "last_candle": last.isoformat(), "last_close": float(df["close"].iloc[-1]),
             "last_candle_age_seconds": round((now - last.tz_convert("UTC")).total_seconds()),
-            "fetched_at": fetched_at.isoformat(), "market_open": opened,
+            "fetched_at": fetched_at.isoformat(), "market_open": True if crypto else opened,
+            "market": 'crypto' if crypto else 'stocks', "timezone": 'UTC' if crypto else TZ,
+            "session": 'Crypto 24/7; completed UTC candles' if crypto else 'Provider daily stock bars; completed ET days; eligible extended-hours trades included' if interval == 1440 else 'US regular session only; completed candles; split-adjusted; final hourly bar may be shorter',
             "provider_status": provider_status,
             "delay_notice": "Provider reports delayed data." if provider_status == "DELAYED" else "Recency depends on your Polygon subscription; an OK response does not certify real-time access.",
-            "session": "US regular session only; completed candles; split-adjusted"}
+            }
 
 
 def records(df):
@@ -148,13 +203,15 @@ class PolygonFeed:
             if not key:
                 raise FeedError("Polygon key is missing from the server's private .env file.", 503)
             self.last_attempt[cache_key] = time.monotonic()
-            url = f"{base}/v2/aggs/ticker/{ticker}/range/{interval}/minute/{(now - pd.Timedelta(days=365)).date()}/{now.date()}"
+            multiplier, timespan = provider_interval(ticker, interval)
+            days = min(365 * 30, max(365, count * (2 if interval == 1440 else 1 if interval == 240 else 0.25)))
+            url = f"{base}/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{(now - pd.Timedelta(days=days)).date()}/{now.date()}"
             try:
                 response = requests.get(url, headers={"Authorization": f"Bearer {key}"}, params={"adjusted": "true", "sort": "desc", "limit": 50000}, timeout=(5, 30), allow_redirects=False)
             except requests.RequestException:
                 raise FeedError("Polygon connection failed or timed out. Try again later.", 502) from None
             if response.status_code in (401, 403):
-                raise FeedError("Polygon denied access. Check your API key and US stocks subscription entitlements.", response.status_code)
+                raise FeedError(f"Polygon denied access. Check your API key and {'crypto' if is_crypto(ticker) else 'US stocks'} subscription entitlements.", response.status_code)
             if response.status_code == 429:
                 raise FeedError("Polygon rate limit reached. Wait before refreshing.", 429)
             if response.status_code != 200:
@@ -174,7 +231,7 @@ class PolygonFeed:
             from urllib.parse import urlsplit, parse_qsl
             for _ in range(12):
                 try:
-                    df = normalize_bars(all_rows, interval, now, count)
+                    df = normalize_bars(all_rows, interval, now, count, ticker)
                     break
                 except FeedError as error:
                     if error.status != 422 or not payload.get("next_url"):
@@ -212,10 +269,12 @@ def register_live_feed(app, ui):
     @app.before_request
     def guard_live_requests():
         if request.path.startswith("/api/live/"):
-            if request.host.split(":")[0] not in ("127.0.0.1", "localhost") or request.headers.get("Sec-Fetch-Site") == "cross-site":
+            authenticated = app.config.get('KRONOS_AUTHENTICATED', False)
+            if (not authenticated and request.host.split(":")[0] not in ("127.0.0.1", "localhost")) or request.headers.get("Sec-Fetch-Site") == "cross-site":
                 return jsonify(error="Live feed requests must come from this local application."), 403
             origin = request.headers.get("Origin")
-            if origin and origin != request.host_url.rstrip("/"):
+            expected_origin = request.host_url.rstrip("/").replace('http://', 'https://', 1) if authenticated else request.host_url.rstrip("/")
+            if origin and origin != expected_origin:
                 return jsonify(error="Live feed requests must come from this local application."), 403
         if request.path in ("/api/load-model", "/api/predict", "/api/live/predict"):
             if not inference_lock.acquire(blocking=False):
@@ -252,6 +311,8 @@ def register_live_feed(app, ui):
             raise FeedError("Load a Kronos model using the Control Panel first.")
         args = request.get_json(silent=True) or {}
         ticker, interval = selection(args.get("ticker", "SPY"), args.get("interval", 5))
+        if args.get('target_today') is True and (is_crypto(ticker) or interval not in (1, 5, 15)):
+            raise FeedError('Watch through-close targets support US stocks with 1m, 5m or 15m candles. Use a candle-count forecast for crypto and longer timeframes.', 422)
         try:
             count = int(args.get("pred_len", 30))
             lookback = int(args.get("lookback", 400))
@@ -267,7 +328,19 @@ def register_live_feed(app, ui):
             raise FeedError(str(error)) from None
         df, info = feed.candles(ticker, interval, max(history, lookback))
         model_df = df.tail(lookback)
-        future = future_timestamps(df["timestamps"].iloc[-1], interval, count)
+        if args.get('target_today') is True:
+            from webui.watch_summary import remaining_session_times
+            try:
+                future = remaining_session_times(df['timestamps'].iloc[-1], interval, pd.Timestamp.now(tz='UTC'))
+            except ValueError as error:
+                raise FeedError(str(error), 422) from None
+            count = len(future)
+            try:
+                validate_forecast(ui.predictor, lookback, count, temperature, top_p, samples)
+            except ValueError as error:
+                raise FeedError(str(error)) from None
+        else:
+            future = future_timestamps(df["timestamps"].iloc[-1], interval, count, ticker)
         try:
             pred = ui.predictor.predict(df=model_df.drop(columns="timestamps"), x_timestamp=model_df["timestamps"], y_timestamp=future, pred_len=count, T=temperature, top_p=top_p, sample_count=samples, verbose=False)
         except Exception:
@@ -276,14 +349,14 @@ def register_live_feed(app, ui):
         if len(pred) != count or not np.isfinite(pred.to_numpy()).all():
             raise FeedError("Kronos returned non-finite predictions; results were not saved.", 500)
         prediction = records(pred.reset_index(names="timestamps"))
-        result = dict(success=True, feed=info, chart=chart(df, ticker, pred), prediction_results=prediction,
+        result = dict(success=True, generated_at=pd.Timestamp.now(tz='UTC').isoformat(), feed=info, chart=chart(df, ticker, pred), prediction_results=prediction,
                       candles=records(df), settings=dict(lookback=lookback, pred_len=count, sample_count=samples, temperature=temperature, top_p=top_p), actual_data=[], has_comparison=False, forecast_anchor=info["last_candle"],
                       message=f"{ticker}: forecasted {count} candles after the latest available completed candle. No future actual prices are known.")
         output = ROOT / "outputs" / "live"
         try:
             output.mkdir(parents=True, exist_ok=True)
             stamp = pd.Timestamp.now(tz="UTC").strftime("%Y%m%dT%H%M%S%fZ")
-            filename = f"{ticker}_{interval}min_{stamp}.json"
+            filename = f"{ticker.replace(':', '-')}_{interval}min_{stamp}.json"
             (output / filename).write_text(json.dumps(result, indent=2), encoding="utf-8")
         except OSError:
             raise FeedError("Forecast completed but could not be saved. Check the project output folder.", 500) from None
@@ -291,4 +364,6 @@ def register_live_feed(app, ui):
         return jsonify(result)
 
     app.register_blueprint(routes)
+    from webui.watch_summary import register_watch_summary
+    register_watch_summary(app, ROOT / 'outputs' / 'live')
     return feed

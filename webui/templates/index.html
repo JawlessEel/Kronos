@@ -441,16 +441,19 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=20261012h">
+    <link rel="stylesheet" href="{{ url_for('static', filename='testing_dashboard.css') }}?v=20261012h">
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🚀 Kronos Financial Prediction Web UI</h1>
-            <p>AI-based financial K-line data prediction analysis platform</p>
+            <p>AI-based financial K-line data prediction &amp; multi-model options testing platform</p>
             <div class="pdf-export-toolbar" data-html2canvas-ignore="true"><button id="download-ui-pdf" type="button">Download whole UI as PDF</button><span id="pdf-export-status" role="status"></span></div>
             {% if config.SESSION_COOKIE_SECURE %}<form method="post" action="/logout" data-html2canvas-ignore="true"><button type="submit">Sign out</button></form>{% endif %}
         </div>
+
+        {% include "testing_dashboard_panel.html" %}
 
         <div class="main-content">
             <div class="control-panel" id="controls">
@@ -1255,12 +1258,13 @@
             }
         }
     </script>
-    <script src="{{ url_for('static', filename='chart_math.js') }}"></script>
-    <script src="{{ url_for('static', filename='prediction_candles.js') }}"></script>
-    <script src="{{ url_for('static', filename='chart_workbench.js') }}"></script>
-    <script src="{{ url_for('static', filename='polygon_live.js') }}"></script>
-    <script src="{{ url_for('static', filename='presets.js') }}"></script>
-    <script src="{{ url_for('static', filename='ui_pdf_export.js') }}"></script>
-    <nav class="mobile-nav" aria-label="Mobile navigation" data-html2canvas-ignore="true"><a href="#controls">Controls</a><a href="#live-chart">Chart</a><a href="#live-candle-data">Predictions</a></nav>
+    <script src="{{ url_for('static', filename='chart_math.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='prediction_candles.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='chart_workbench.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='polygon_live.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='presets.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='ui_pdf_export.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='testing_dashboard.js') }}?v=20261012h"></script>
+    <nav class="mobile-nav" aria-label="Mobile navigation" data-html2canvas-ignore="true"><a href="#testing-dashboard-hub">Testing Lab</a><a href="#controls">Controls</a><a href="#live-chart">Chart</a><a href="#live-candle-data">Predictions</a></nav>
 </body>
 </html>

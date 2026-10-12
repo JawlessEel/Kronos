@@ -83,9 +83,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function describe(info) {
         const bar = new Date(info.last_candle);
         const fetched = new Date(info.fetched_at);
-        return `${info.ticker} | ${info.interval_minutes}-minute candles | ${info.rows} completed bars\n` +
-            `Latest close: $${info.last_close.toFixed(2)} | Latest bar: ${bar.toLocaleString()}\n` +
-            `Data fetched: ${fetched.toLocaleString()} | Regular market ${info.market_open ? 'open' : 'closed'}\n` +
+        const label = {60:'1-hour',240:'4-hour',1440:'1-day'}[info.interval_minutes] || `${info.interval_minutes}-minute`;
+        const format = date => date.toLocaleString('en-US',{timeZone:info.timezone||'America/New_York',timeZoneName:'short'});
+        return `${info.ticker} | ${label} candles | ${info.rows} completed bars\n` +
+            `Latest close: $${info.last_close.toFixed(2)} | Latest bar: ${format(bar)}\n` +
+            `Data fetched: ${format(fetched)} | ${info.market==='crypto'?'Crypto market open 24/7':`Regular market ${info.market_open ? 'open' : 'closed'}`}\n${info.session}\n` +
             info.delay_notice;
     }
 
@@ -114,7 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             status.textContent = describe(result.feed);
             if (forecast) {
                 status.textContent += '\n' + result.message;
-                forecastNote.textContent = 'Saved forecast: ' + result.saved_file + '. Forecast anchor: ' + new Date(result.forecast_anchor).toLocaleString() + '.';
+                forecastNote.textContent = 'Saved forecast: ' + result.saved_file + '. Forecast anchor: ' + new Date(result.forecast_anchor).toLocaleString('en-US',{timeZone:result.feed.timezone||'America/New_York',timeZoneName:'short'}) + '.';
             } else {
                 forecastNote.textContent = 'Latest available candles. Click Forecast latest candles to generate a new forecast.';
             }
@@ -158,6 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     [ticker, interval].forEach(control => control.addEventListener('change', () => stop('Feed selection changed; fetch to update the chart.')));
     requestJson('/api/live/status').then(info => {
-        status.textContent = info.configured ? 'Polygon key configured on server. Ready to fetch SPY.' : 'Add POLYGON_API_KEY to the project .env, then fetch again.';
+        status.textContent = info.configured ? 'Polygon key configured. Choose a stock or X: crypto pair and timeframe, then fetch.' : 'Add POLYGON_API_KEY to the project .env, then fetch again.';
     }).catch(error => { status.textContent = error.message; });
 });

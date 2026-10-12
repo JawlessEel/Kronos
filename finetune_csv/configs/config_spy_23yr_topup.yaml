@@ -1,0 +1,41 @@
+data:
+  data_path: /Volumes/MacMoneyMakerSSD/Ai_apps/kronos/data/spy_multi_timeframe
+  lookback_window: 256
+  predict_window: 48
+  max_context: 512
+  clip: 5.0
+  train_ratio: 0.92
+  val_ratio: 0.08
+  test_ratio: 0.0
+training:
+  tokenizer_epochs: 1
+  basemodel_epochs: 1
+  batch_size: 32
+  log_interval: 50
+  num_workers: 0
+  seed: 42
+  tokenizer_learning_rate: 5.0e-05
+  predictor_learning_rate: 5.0e-07
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_weight_decay: 0.01
+  accumulation_steps: 2
+model_paths:
+  pretrained_tokenizer: /Volumes/MacMoneyMakerSSD/Ai_apps/kronos/finetune_csv/finetuned/SPY_20yr_multi_timeframe/tokenizer/best_model
+  pretrained_predictor: /Volumes/MacMoneyMakerSSD/Ai_apps/kronos/finetune_csv/finetuned/SPY_20yr_multi_timeframe/basemodel/best_model
+  exp_name: SPY_23yr_multi_tf
+  base_path: /Volumes/MacMoneyMakerSSD/Ai_apps/kronos/finetune_csv/finetuned
+  base_save_path: ''
+  finetuned_tokenizer: /Volumes/MacMoneyMakerSSD/Ai_apps/kronos/finetune_csv/finetuned/SPY_23yr_multi_tf/tokenizer/best_model
+  tokenizer_save_name: tokenizer
+  basemodel_save_name: basemodel
+experiment:
+  name: kronos_spy_23yr_topup
+  description: Incremental experience-replay top-up of SPY 20yr model through 2026-10-09
+  use_comet: false
+  train_tokenizer: false
+  train_basemodel: true
+  skip_existing: true
+device:
+  use_cuda: false
+  device_id: 0

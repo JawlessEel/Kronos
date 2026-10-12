@@ -1,9 +1,11 @@
 <section aria-label="Polygon live feed" style="border-top:1px solid #e2e8f0; padding-top:18px; margin-top:16px">
     <h3>Polygon market data</h3>
-    <p class="form-text">Load a model above, then fetch the latest completed US regular-session candles. Data delay depends on your subscription.</p>
+    <p class="form-text">Stocks/ETFs and USD crypto pairs. Crypto trades 24/7 in UTC. Stock intraday candles use regular sessions; daily bars include eligible extended-hours trades. Data access and delay depend on your Polygon subscription.</p>
     <div class="form-group">
         <label for="live-ticker">Live ticker:</label>
-        <input id="live-ticker" value="SPY" maxlength="15" autocomplete="off">
+        <input id="live-ticker" value="SPY" maxlength="25" autocomplete="off" list="live-symbols">
+        <datalist id="live-symbols"><option value="SPY"></option><option value="AAPL"></option><option value="X:BTCUSD"></option><option value="X:ETHUSD"></option><option value="X:SOLUSD"></option><option value="X:DOGEUSD"></option></datalist>
+        <small class="form-text">For crypto enter X:BTCUSD or X:ETHUSD. Only completed candles enter forecasts.</small>
     </div>
     <div class="form-group">
         <label for="live-interval">Live candle interval:</label>
@@ -11,6 +13,9 @@
             <option value="1">1 minute</option>
             <option value="5" selected>5 minutes</option>
             <option value="15">15 minutes</option>
+            <option value="60">1 hour</option>
+            <option value="240">4 hours</option>
+            <option value="1440">1 day</option>
         </select>
     </div>
     <div class="form-group">
@@ -24,5 +29,5 @@
     <button id="live-predict" class="btn" type="button">Forecast latest candles</button>
     <p id="live-status" role="status" style="white-space:pre-line; overflow-wrap:anywhere">Checking Polygon connection settings...</p>
     <p id="control-save-note" class="form-text">Control preferences use local browser storage.</p>
-    <p class="form-text">Forecast uses the selected model lookback and skips market closures. Auto-refresh updates candles only; it stops when this page is hidden, after three errors, or after four hours. Forecasts are saved under outputs/live.</p>
+    <p class="form-text">Forecast length counts candles in the selected timeframe: 30 daily candles forecasts 30 days/bars. Stocks skip market closures; crypto includes weekends. Final stock hourly bars may be shorter at session close. Auto-refresh updates candles only; it stops when this page is hidden, after three errors, or after four hours. Forecasts are saved under outputs/live.</p>
 </section>

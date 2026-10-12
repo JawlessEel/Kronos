@@ -19,6 +19,9 @@ def configure_local_models():
         raise RuntimeError("Kronos imports failed. Check the project environment.")
     for config in ui.AVAILABLE_MODELS.values():
         for key in ("model_id", "tokenizer_id"):
+            existing = Path(config[key])
+            if existing.is_dir() and (existing / "config.json").is_file() and (existing / "model.safetensors").is_file():
+                continue
             local = ROOT / "models" / config[key].split("/")[-1]
             if not (local / "config.json").is_file() or not (local / "model.safetensors").is_file():
                 raise FileNotFoundError(f"Missing local weights or configuration: {local}")
@@ -33,7 +36,9 @@ def main():
     args = parser.parse_args()
     configure_local_models()
     from webui.polygon_feed import register_live_feed
-    register_live_feed(ui.app, ui)
+    live_feed = register_live_feed(ui.app, ui)
+    from webui.testing_suite import register_testing_suite
+    register_testing_suite(ui.app, ui, live_feed=live_feed)
     if args.require_auth:
         from dotenv import load_dotenv
         from webui.access import configure_access

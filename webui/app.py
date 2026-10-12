@@ -59,20 +59,30 @@ AVAILABLE_MODELS = {
 }
 
 def load_data_files():
-    """Scan data directory and return available data files"""
+    """Scan data directory and return available data files (including multi-timeframe subdirectories)"""
     data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
     data_files = []
     
     if os.path.exists(data_dir):
-        for file in os.listdir(data_dir):
-            if file.endswith(('.csv', '.feather')):
-                file_path = os.path.join(data_dir, file)
-                file_size = os.path.getsize(file_path)
+        for entry in sorted(os.listdir(data_dir)):
+            entry_path = os.path.join(data_dir, entry)
+            if os.path.isfile(entry_path) and entry.endswith(('.csv', '.feather')):
+                file_size = os.path.getsize(entry_path)
                 data_files.append({
-                    'name': file,
-                    'path': file_path,
+                    'name': entry,
+                    'path': entry_path,
                     'size': f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
                 })
+            elif os.path.isdir(entry_path) and entry != 'research_cache':
+                for subfile in sorted(os.listdir(entry_path)):
+                    if subfile.endswith(('.csv', '.feather')):
+                        sub_path = os.path.join(entry_path, subfile)
+                        file_size = os.path.getsize(sub_path)
+                        data_files.append({
+                            'name': f"{entry}/{subfile}",
+                            'path': sub_path,
+                            'size': f"{file_size / 1024:.1f} KB" if file_size < 1024*1024 else f"{file_size / (1024*1024):.1f} MB"
+                        })
     
     return data_files
 
