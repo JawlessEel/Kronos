@@ -1,0 +1,535 @@
+<section id="testing-dashboard-hub" class="testing-hub-card" aria-label="Tuned Models, Options & Postgres Analytics Hub">
+    <div class="testing-hub-header">
+        <div>
+            <h2>🧪 Kronos Multi-Model Testing, Options &amp; PostgreSQL Analytics Hub</h2>
+            <p class="testing-hub-subtitle">
+                Historical &amp; live evaluation across all 9 specialized multi-timeframe models (SPY, QQQ, IWM, NVDA, GME, TLT, GLD, VIX Companion), Polygon Options Chain / GEX / IV Surface, and longitudinal PostgreSQL storage (<code>kronos_research</code>).
+            </p>
+        </div>
+        <div class="testing-hub-badges">
+            <span id="pg-status-badge" class="hub-badge badge-info">Postgres: Connecting...</span>
+            <span id="accel-status-badge" class="hub-badge badge-neutral">Device: Checking...</span>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="hub-tabs" role="tablist" aria-label="Testing Dashboard Modules">
+        <button class="hub-tab active" role="tab" aria-selected="true" data-tab="tab-models-lab">
+            🎯 Tuned Models &amp; Confluence Lab
+        </button>
+        <button class="hub-tab" role="tab" aria-selected="false" data-tab="tab-options-intel">
+            ⛓️ Options Chain, GEX &amp; Underlying Intel
+        </button>
+        <button class="hub-tab" role="tab" aria-selected="false" data-tab="tab-backtest-scoreboard">
+            📈 Walk-Forward Backtester &amp; Scoreboard
+        </button>
+        <button class="hub-tab" role="tab" aria-selected="false" data-tab="tab-postgres-explorer">
+            🗄️ PostgreSQL Research Vault (<span id="pg-total-records">0</span>)
+        </button>
+    </div>
+
+    <!-- TAB 1: Tuned Models & Confluence Lab -->
+    <div id="tab-models-lab" class="hub-tab-panel active" role="tabpanel">
+        <div class="ticker-pill-bar" aria-label="Quick select tuned ticker">
+            <span class="pill-label">Tuned Tickers:</span>
+            <button type="button" class="ticker-pill active" data-ticker="SPY">SPY (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="QQQ">QQQ (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="IWM">IWM (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="NVDA">NVDA (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="GME">GME (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="TLT">TLT (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="GLD">GLD (23-Yr)</button>
+            <button type="button" class="ticker-pill" data-ticker="VIXY">VIXY (Vol)</button>
+            <button type="button" class="ticker-pill" data-ticker="UVXY">UVXY (Vol)</button>
+            <button type="button" class="ticker-pill" data-ticker="I:VIX">I:VIX (Spot)</button>
+        </div>
+
+        <div class="lab-controls-grid">
+            <div class="lab-field">
+                <label for="lab-ticker">Target Ticker</label>
+                <input id="lab-ticker" type="text" value="SPY" maxlength="15">
+            </div>
+            <div class="lab-field">
+                <label for="lab-model">Specialized Model</label>
+                <select id="lab-model">
+                    <option value="SPY_23yr_multi_tf">SPY 23-Yr Multi-TF (5m, 15m, 1h, 1d)</option>
+                    <option value="QQQ_23yr_multi_tf">QQQ 23-Yr Multi-TF (5m, 15m, 1h, 1d)</option>
+                    <option value="IWM_23yr_multi_tf">IWM 23-Yr Multi-TF (5m, 15m, 1h, 1d)</option>
+                    <option value="NVDA_23yr_multi_tf">NVDA 23-Yr Multi-TF (5m, 15m, 1h, 1d)</option>
+                    <option value="GME_23yr_multi_tf">GME 23-Yr Multi-TF (5m, 15m, 1h, 1d)</option>
+                    <option value="MACRO_TLT_GLD_23yr_multi_tf">Macro TLT &amp; GLD 23-Yr Multi-TF</option>
+                    <option value="VIX_companion_multi_tf">VIX Volatility Companion (I:VIX, VIXY, UVXY)</option>
+                    <option value="SPY_20yr_multi_timeframe">SPY 20-Yr Pre-2025 Multi-TF</option>
+                    <option value="SPY_5min_intraday">SPY 5-Min Intraday Specialist</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="lab-timeframe">Timeframe</label>
+                <select id="lab-timeframe">
+                    <option value="5min">5 Minutes</option>
+                    <option value="15min">15 Minutes</option>
+                    <option value="1hour" selected>1 Hour</option>
+                    <option value="1day">1 Day</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="lab-norm">Normalization</label>
+                <select id="lab-norm">
+                    <option value="detrend" selected>Detrend (Linear Slope)</option>
+                    <option value="last_price_anchor">Last Price Anchor</option>
+                    <option value="standard">Standard Z-Score</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="lab-eval-mode">Evaluation Mode</label>
+                <select id="lab-eval-mode">
+                    <option value="held_out" selected>Held-Out Window (Compare vs Actual)</option>
+                    <option value="future">Future Forecast (From Latest Bar)</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="lab-data-source">Data Source</label>
+                <select id="lab-data-source">
+                    <option value="local" selected>Local 23-Yr Dataset</option>
+                    <option value="live">Live Polygon Feed</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="lab-lookback">Lookback Bars</label>
+                <input id="lab-lookback" type="number" min="32" max="512" value="256">
+            </div>
+            <div class="lab-field">
+                <label for="lab-horizon">Forecast Bars</label>
+                <input id="lab-horizon" type="number" min="4" max="120" value="24">
+            </div>
+            <div class="lab-field">
+                <label for="lab-samples">Sample Paths (Medoid)</label>
+                <input id="lab-samples" type="number" min="1" max="15" value="5">
+            </div>
+            <div class="lab-field">
+                <label for="lab-window-offset">Held-Out Offset (Windows Back)</label>
+                <input id="lab-window-offset" type="number" min="1" max="80" value="1">
+            </div>
+            <div class="lab-field">
+                <label for="lab-companion">VIX Confluence Companion</label>
+                <select id="lab-companion">
+                    <option value="I:VIX" selected>Spot VIX (I:VIX)</option>
+                    <option value="VIXY">VIXY Short-Term Futures ETF</option>
+                    <option value="UVXY">UVXY 1.5x VIX ETF</option>
+                    <option value="NONE">Disabled</option>
+                </select>
+            </div>
+            <div class="lab-field lab-actions lab-actions-wide">
+                <button id="lab-run-btn" type="button" class="hub-btn hub-btn-primary">
+                    ⚡ Run Enhanced Analysis &amp; Save to DB
+                </button>
+                <button id="lab-run-all-spy-btn" type="button" class="hub-btn hub-btn-secondary">
+                    🚀 Run All 7 SPY Setups
+                </button>
+            </div>
+        </div>
+
+        <div id="lab-status-msg" class="hub-status-banner" role="status">
+            Select any tuned ticker above and click <strong>Run Enhanced Analysis &amp; Save to DB</strong> (or <strong>Run All 7 SPY Setups</strong>) to execute Medoid + Volatility Envelope inference with VIX Companion confirmation.
+        </div>
+
+        <!-- KPI Metrics Row -->
+        <div id="lab-kpi-grid" class="hub-kpi-grid" style="display:none;">
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Anchor Close &rarr; Forecast</span>
+                <div class="kpi-val" id="kpi-price-move">-</div>
+                <span class="kpi-sub" id="kpi-pred-ret">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Realized Actual Move</span>
+                <div class="kpi-val" id="kpi-actual-ret">-</div>
+                <span class="kpi-sub" id="kpi-dir-hit">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">VIX Confluence Signal</span>
+                <div class="kpi-val" id="kpi-conf-signal">-</div>
+                <span class="kpi-sub" id="kpi-conf-detail">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Probabilistic Volatility Range &amp; Skill</span>
+                <div class="kpi-val" id="kpi-env-range">-</div>
+                <span class="kpi-sub" id="kpi-error-metrics">-</span>
+            </div>
+        </div>
+
+        <div id="lab-chart-container" class="hub-chart-box"></div>
+
+        <!-- Multi-Setup Execution Matrix -->
+        <div id="spy-setups-matrix-section" class="hub-section-block" style="display:none;">
+            <h3>📊 Multi-Setup Execution Matrix (All SPY Setups &amp; Active Runs)</h3>
+            <div class="table-wrapper">
+                <table class="hub-table" id="spy-setups-matrix-table">
+                    <thead>
+                        <tr>
+                            <th>Setup Preset</th>
+                            <th>Model</th>
+                            <th>TF / Source</th>
+                            <th>Norm</th>
+                            <th>Anchor &rarr; Pred</th>
+                            <th>Pred Return</th>
+                            <th>Actual Return</th>
+                            <th>Dir Hit</th>
+                            <th>VIX Companion</th>
+                            <th>Confluence Signal</th>
+                            <th>MAE / MAPE (Skill)</th>
+                            <th>DB Run</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="spy-setups-matrix-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: Options Chain, GEX & Underlying Intel -->
+    <div id="tab-options-intel" class="hub-tab-panel" role="tabpanel" hidden>
+        <div class="lab-controls-grid">
+            <div class="lab-field">
+                <label for="opt-ticker">Underlying Symbol</label>
+                <input id="opt-ticker" type="text" value="SPY" maxlength="15">
+            </div>
+            <div class="lab-field">
+                <label for="opt-expiration">Expiration Filter (Optional YYYY-MM-DD)</label>
+                <select id="opt-expiration">
+                    <option value="">All Near-Term Expirations (Next 45 Days)</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="opt-strike-pct">Strike Range (&plusmn;% of Spot)</label>
+                <input id="opt-strike-pct" type="number" min="5" max="35" value="12">
+            </div>
+            <div class="lab-field">
+                <label for="opt-days-out">Max Days to Expiration</label>
+                <input id="opt-days-out" type="number" min="1" max="180" value="45">
+            </div>
+            <div class="lab-field lab-actions lab-actions-wide">
+                <button id="opt-fetch-btn" type="button" class="hub-btn hub-btn-primary">
+                    📡 Pull Options Chain + Underlying Intel &amp; Save to Postgres
+                </button>
+            </div>
+        </div>
+
+        <div id="opt-status-msg" class="hub-status-banner" role="status">
+            Click <strong>Pull Options Chain + Underlying Intel &amp; Save to Postgres</strong> to fetch live Polygon options contracts, Greeks, IV Skew, Max Pain, Dealer GEX, and underlying RSI/MACD/SMA/News.
+        </div>
+
+        <!-- Underlying & Options KPI Cards -->
+        <div id="opt-kpi-grid" class="hub-kpi-grid" style="display:none;">
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Underlying Spot &amp; Spread</span>
+                <div class="kpi-val" id="opt-spot-val">-</div>
+                <span class="kpi-sub" id="opt-bid-ask">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Put/Call Ratios (OI &amp; Vol)</span>
+                <div class="kpi-val" id="opt-pc-ratio">-</div>
+                <span class="kpi-sub" id="opt-oi-totals">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Key Option Walls &amp; Max Pain</span>
+                <div class="kpi-val" id="opt-max-pain">-</div>
+                <span class="kpi-sub" id="opt-walls">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">ATM IV &amp; 25&Delta; Put-Call Skew</span>
+                <div class="kpi-val" id="opt-atm-iv">-</div>
+                <span class="kpi-sub" id="opt-iv-skew">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Dealer Net GEX &amp; DEX</span>
+                <div class="kpi-val" id="opt-net-gex">-</div>
+                <span class="kpi-sub" id="opt-net-dex">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Daily Technicals (RSI / MACD / SMA20)</span>
+                <div class="kpi-val" id="opt-rsi-val">-</div>
+                <span class="kpi-sub" id="opt-macd-sma">-</span>
+            </div>
+        </div>
+
+        <!-- Dual Options Charts: OI/GEX + IV Smile -->
+        <div class="hub-dual-charts">
+            <div id="opt-oi-gex-chart" class="hub-chart-box"></div>
+            <div id="opt-iv-smile-chart" class="hub-chart-box"></div>
+        </div>
+
+        <!-- Top Active Options Contracts Table -->
+        <div class="hub-section-block">
+            <h3>🔥 Top Active Option Contracts (Stored in <code>options_contracts_quotes</code>)</h3>
+            <div class="table-wrapper">
+                <table class="hub-table" id="opt-contracts-table">
+                    <thead>
+                        <tr>
+                            <th>Contract</th>
+                            <th>Type</th>
+                            <th>Expiration</th>
+                            <th>Strike</th>
+                            <th>Last / Mid</th>
+                            <th>Bid / Ask</th>
+                            <th>Volume</th>
+                            <th>Open Interest</th>
+                            <th>IV (%)</th>
+                            <th>Delta (&Delta;)</th>
+                            <th>Gamma (&Gamma;)</th>
+                            <th>Theta (&Theta;)</th>
+                            <th>Dealer GEX ($)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="opt-contracts-tbody">
+                        <tr><td colspan="13">Pull options data above to populate active contracts.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Underlying News & Fundamentals -->
+        <div class="hub-section-block" id="opt-news-section" style="display:none;">
+            <h3>📰 Underlying Company Profile &amp; Latest Polygon News</h3>
+            <p id="opt-company-desc" class="testing-hub-subtitle" style="margin-bottom:12px;"></p>
+            <div id="opt-news-list" class="hub-news-grid"></div>
+        </div>
+    </div>
+
+    <!-- TAB 3: Walk-Forward Backtester & Scoreboard -->
+    <div id="tab-backtest-scoreboard" class="hub-tab-panel" role="tabpanel" hidden>
+        <div class="lab-controls-grid">
+            <div class="lab-field">
+                <label for="bt-ticker">Ticker to Backtest</label>
+                <select id="bt-ticker">
+                    <option value="SPY">SPY (S&amp;P 500)</option>
+                    <option value="QQQ">QQQ (Nasdaq-100)</option>
+                    <option value="IWM">IWM (Russell 2000)</option>
+                    <option value="NVDA">NVDA (NVIDIA)</option>
+                    <option value="GME">GME (GameStop)</option>
+                    <option value="TLT">TLT (20+ Yr Treasury)</option>
+                    <option value="GLD">GLD (Gold Trust)</option>
+                    <option value="VIXY">VIXY (VIX Futures ETF)</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="bt-timeframe">Timeframe</label>
+                <select id="bt-timeframe">
+                    <option value="5min">5 Minutes</option>
+                    <option value="15min">15 Minutes</option>
+                    <option value="1hour" selected>1 Hour</option>
+                    <option value="1day">1 Day</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="bt-companion">VIX Companion Filter</label>
+                <select id="bt-companion">
+                    <option value="I:VIX" selected>Spot VIX (I:VIX)</option>
+                    <option value="VIXY">VIXY Futures ETF</option>
+                    <option value="UVXY">UVXY 1.5x VIX ETF</option>
+                    <option value="NONE">Disabled (Single Model)</option>
+                </select>
+            </div>
+            <div class="lab-field">
+                <label for="bt-windows">Rolling Windows</label>
+                <input id="bt-windows" type="number" min="3" max="30" value="10">
+            </div>
+            <div class="lab-field">
+                <label for="bt-horizon">Horizon Bars</label>
+                <input id="bt-horizon" type="number" min="4" max="64" value="24">
+            </div>
+            <div class="lab-field">
+                <label for="bt-samples">Sample Paths</label>
+                <input id="bt-samples" type="number" min="1" max="10" value="3">
+            </div>
+            <div class="lab-field lab-actions lab-actions-wide">
+                <button id="bt-run-btn" type="button" class="hub-btn hub-btn-primary">
+                    🏃 Run Rolling Walk-Forward Backtest
+                </button>
+            </div>
+        </div>
+
+        <div id="bt-status-msg" class="hub-status-banner" role="status">
+            Review the pre-computed 2026 Out-of-Sample Model Factory Scoreboard below, or launch a custom rolling walk-forward backtest on any tuned ticker and timeframe.
+        </div>
+
+        <!-- Walk-Forward Statistical & Baseline KPI Cards (ML Best Practices) -->
+        <div id="bt-kpi-grid" class="hub-kpi-grid" style="display:none;">
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Direction Accuracy &amp; 95% Wilson CI</span>
+                <div class="kpi-val" id="bt-kpi-acc">-</div>
+                <span class="kpi-sub" id="bt-kpi-ci">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">VIX Confluence Confirmed Filter</span>
+                <div class="kpi-val" id="bt-kpi-conf">-</div>
+                <span class="kpi-sub" id="bt-kpi-conf-sub">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">MAE vs Naive Random Walk Baseline</span>
+                <div class="kpi-val" id="bt-kpi-mae">-</div>
+                <span class="kpi-sub" id="bt-kpi-skill">-</span>
+            </div>
+            <div class="hub-kpi-card">
+                <span class="kpi-title">Walk-Forward Research Return vs B&amp;H</span>
+                <div class="kpi-val" id="bt-kpi-strat">-</div>
+                <span class="kpi-sub" id="bt-kpi-bh">-</span>
+            </div>
+        </div>
+
+        <div id="bt-chart-container" class="hub-chart-box"></div>
+
+        <div class="hub-section-block">
+            <h3>🏆 Tuned Multi-Timeframe Models Registry &amp; Out-of-Sample Benchmark Scoreboard</h3>
+            <div class="table-wrapper">
+                <table class="hub-table" id="models-scoreboard-table">
+                    <thead>
+                        <tr>
+                            <th>Model Key</th>
+                            <th>Tickers</th>
+                            <th>Timeframes</th>
+                            <th>Normalization</th>
+                            <th>Training Dataset Bars</th>
+                            <th>Factory Status</th>
+                            <th>OOS Direction Accuracy</th>
+                            <th>Avg MAE ($)</th>
+                            <th>Avg MAPE (%)</th>
+                            <th>Quick Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="models-scoreboard-tbody">
+                        <tr><td colspan="10">Loading tuned model registry...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 4: PostgreSQL Research Vault Explorer -->
+    <div id="tab-postgres-explorer" class="hub-tab-panel" role="tabpanel" hidden>
+        <div class="pg-toolbar">
+            <div>
+                <strong>PostgreSQL Server Database:</strong> <code>kronos_research</code>
+                <span id="pg-counts-summary" style="margin-left:12px;"></span>
+            </div>
+            <div class="pg-toolbar-actions">
+                <input id="pg-filter-ticker" type="text" placeholder="Filter by Ticker (e.g. SPY)" style="padding:8px 12px; border-radius:6px; width:190px;">
+                <button id="pg-refresh-btn" type="button" class="hub-btn hub-btn-secondary">🔄 Refresh Log</button>
+                <a href="/api/testing/export-db?table=model_forecast_runs&amp;format=csv" class="hub-btn hub-btn-secondary" download>📥 Forecasts CSV</a>
+                <a href="/api/testing/export-db?table=options_chain_snapshots&amp;format=csv" class="hub-btn hub-btn-secondary" download>📥 Options CSV</a>
+                <a href="/api/testing/export-db?table=model_backtest_runs&amp;format=csv" class="hub-btn hub-btn-secondary" download>📥 Backtests CSV</a>
+                <a href="/api/testing/export-db?table=model_forecast_runs&amp;format=json" class="hub-btn hub-btn-secondary" download>📦 Export JSON</a>
+            </div>
+        </div>
+
+        <div class="hub-section-block">
+            <h3>🔮 Saved Model Forecast Runs (<code>model_forecast_runs</code>)</h3>
+            <div class="table-wrapper">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>Run ID</th>
+                            <th>Timestamp</th>
+                            <th>Ticker</th>
+                            <th>Model</th>
+                            <th>TF (min)</th>
+                            <th>Mode</th>
+                            <th>Last Close</th>
+                            <th>Pred Close</th>
+                            <th>Pred Return</th>
+                            <th>Confluence Signal</th>
+                            <th>MAE</th>
+                            <th>MAPE (%)</th>
+                            <th>Hit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pg-forecasts-tbody">
+                        <tr><td colspan="13">No forecast runs recorded yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="hub-section-block">
+            <h3>⛓️ Saved Options Chain Snapshots (<code>options_chain_snapshots</code>)</h3>
+            <div class="table-wrapper">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>Snap ID</th>
+                            <th>Captured At</th>
+                            <th>Ticker</th>
+                            <th>Spot Price</th>
+                            <th>Contracts</th>
+                            <th>Call OI</th>
+                            <th>Put OI</th>
+                            <th>P/C OI Ratio</th>
+                            <th>ATM IV (%)</th>
+                            <th>25&Delta; Skew</th>
+                            <th>Max Pain</th>
+                            <th>Call / Put Wall</th>
+                            <th>Net GEX ($M)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pg-options-tbody">
+                        <tr><td colspan="13">No options snapshots recorded yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="hub-section-block">
+            <h3>📊 Saved Walk-Forward Backtest Runs (<code>model_backtest_runs</code>)</h3>
+            <div class="table-wrapper">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>BT ID</th>
+                            <th>Created At</th>
+                            <th>Ticker</th>
+                            <th>Model</th>
+                            <th>Companion</th>
+                            <th>Timeframe</th>
+                            <th>Windows</th>
+                            <th>Unfiltered Acc</th>
+                            <th>Confirmed Acc</th>
+                            <th>Avg MAE</th>
+                            <th>p-value</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pg-backtests-tbody">
+                        <tr><td colspan="12">Loading backtest history...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="hub-section-block">
+            <h3>🏢 Saved Underlying Snapshots &amp; Technicals (<code>underlying_snapshots</code>)</h3>
+            <div class="table-wrapper">
+                <table class="hub-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Captured At</th>
+                            <th>Ticker</th>
+                            <th>Price</th>
+                            <th>Day Change (%)</th>
+                            <th>Day Volume</th>
+                            <th>VWAP</th>
+                            <th>Bid / Ask</th>
+                            <th>RSI (14)</th>
+                            <th>SMA (20)</th>
+                            <th>EMA (20)</th>
+                            <th>MACD / Signal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pg-underlyings-tbody">
+                        <tr><td colspan="12">No underlying snapshots recorded yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>

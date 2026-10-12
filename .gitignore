@@ -79,6 +79,8 @@ tmp/
 .cache/
 .venv-rebuild/
 models/
+finetune_csv/finetuned/
+*.safetensors
 data/
 outputs/
 webui/prediction_results/prediction_2026*.json

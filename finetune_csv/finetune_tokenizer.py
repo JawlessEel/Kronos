@@ -127,7 +127,7 @@ def create_dataloaders(config):
         batch_size=config.batch_size,
         shuffle=(train_sampler is None),
         num_workers=config.num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         drop_last=True,
         sampler=train_sampler
     )
@@ -137,7 +137,7 @@ def create_dataloaders(config):
         batch_size=config.batch_size,
         shuffle=False,
         num_workers=config.num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         drop_last=False,
         sampler=val_sampler
     )
@@ -288,7 +288,7 @@ def main():
     
     config = CustomFinetuneConfig(args.config)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Using device: {device}")
     
     config = CustomFinetuneConfig(args.config)

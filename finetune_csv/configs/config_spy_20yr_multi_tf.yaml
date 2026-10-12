@@ -1,0 +1,55 @@
+# Kronos fine-tuning configuration for 20-Year Multi-Timeframe SPY Dataset
+# Timeframes: 5-minute, 15-minute, 1-hour, 1-day (2004 - 2024)
+# Fresh upstream base weights fine-tuned on Apple Silicon MPS
+
+data:
+  data_path: "/Volumes/MacMoneyMakerSSD/Ai_apps/kronos/data/spy_multi_timeframe"
+  lookback_window: 256
+  predict_window: 48
+  max_context: 512
+  clip: 5.0
+  train_ratio: 0.85
+  val_ratio: 0.15
+  test_ratio: 0.0
+
+training:
+  tokenizer_epochs: 4
+  basemodel_epochs: 2
+  batch_size: 32
+  log_interval: 50
+  num_workers: 0
+  seed: 42
+  
+  tokenizer_learning_rate: 0.0001
+  predictor_learning_rate: 0.000001
+  
+  adam_beta1: 0.9
+  adam_beta2: 0.95
+  adam_weight_decay: 0.01
+  accumulation_steps: 2
+
+model_paths:
+  pretrained_tokenizer: "/Volumes/MacMoneyMakerSSD/Ai_apps/kronos/models/Kronos-Tokenizer-base"
+  pretrained_predictor: "/Volumes/MacMoneyMakerSSD/Ai_apps/kronos/models/Kronos-base"
+  
+  exp_name: "SPY_20yr_multi_timeframe"
+  base_path: "/Volumes/MacMoneyMakerSSD/Ai_apps/kronos/finetune_csv/finetuned"
+
+  base_save_path: ""
+  finetuned_tokenizer: ""
+  
+  tokenizer_save_name: "tokenizer"
+  basemodel_save_name: "basemodel"
+
+experiment:
+  name: "kronos_spy_20yr_multi_tf"
+  description: "Finetuning Kronos on SPY 20-year multi-timeframe dataset (5m, 15m, 1h, Daily)"
+  use_comet: false
+  
+  train_tokenizer: true
+  train_basemodel: true
+  skip_existing: false
+
+device:
+  use_cuda: false
+  device_id: 0

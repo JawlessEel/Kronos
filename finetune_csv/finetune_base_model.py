@@ -1,3 +1,4 @@
+import glob
 import os
 import sys
 import json
@@ -42,82 +43,113 @@ class CustomKlineDataset(Dataset):
         
         self.py_rng = random.Random(seed)
         
-        self._load_and_preprocess_data()
-        self._split_data_by_time()
-        
-        self.n_samples = len(self.data) - self.window + 1
+        # Discover files (single CSV, directory of CSVs, or glob)
+        if os.path.isdir(self.data_path):
+            self.file_list = sorted(glob.glob(os.path.join(self.data_path, "*.csv")))
+        elif "," in self.data_path:
+            self.file_list = [f.strip() for f in self.data_path.split(",")]
+        elif "*" in self.data_path:
+            self.file_list = sorted(glob.glob(self.data_path))
+        else:
+            self.file_list = [self.data_path]
             
-        print(f"[{data_type.upper()}] Data length: {len(self.data)}, Available samples: {self.n_samples}")
-    
-    def _load_and_preprocess_data(self):
-        df = pd.read_csv(self.data_path)
+        if not self.file_list:
+            raise FileNotFoundError(f"No CSV data files found at path: {self.data_path}")
+            
+        self.segments = []
+        self._load_and_preprocess_all()
         
-        df['timestamps'] = pd.to_datetime(df['timestamps'])
-        df = df.sort_values('timestamps').reset_index(drop=True)
+        if not self.segments:
+            raise ValueError(f"[{data_type.upper()}] No valid segments found with length >= {self.window}")
+            
+        self.n_samples = sum(seg["max_start"] + 1 for seg in self.segments)
         
-        self.timestamps = df['timestamps'].copy()
-        
-        df['minute'] = df['timestamps'].dt.minute
-        df['hour'] = df['timestamps'].dt.hour
-        df['weekday'] = df['timestamps'].dt.weekday
-        df['day'] = df['timestamps'].dt.day
-        df['month'] = df['timestamps'].dt.month
-        
-        self.data = df[self.feature_list + self.time_feature_list].copy()
-        
-        if self.data.isnull().any().any():
-            print("Warning: Missing values found in data, performing forward fill")
-            self.data = self.data.fillna(method='ffill')
-        
-        print(f"Original data time range: {self.timestamps.min()} to {self.timestamps.max()}")
-        print(f"Original data total length: {len(df)} records")
-    
-    def _split_data_by_time(self):
-        total_length = len(self.data)
-        
-        train_end = int(total_length * self.train_ratio)
-        val_end = int(total_length * (self.train_ratio + self.val_ratio))
-        
-        if self.data_type == 'train':
-            self.data = self.data.iloc[:train_end].copy()
-            self.timestamps = self.timestamps.iloc[:train_end].copy()
-            print(f"[{self.data_type.upper()}] Training set: first {train_end} time points ({self.train_ratio})")
-            print(f"[{self.data_type.upper()}] Training set time range: {self.timestamps.min()} to {self.timestamps.max()}")
-        elif self.data_type == 'val':
-            self.data = self.data.iloc[train_end:val_end].copy()
-            self.timestamps = self.timestamps.iloc[train_end:val_end].copy()
-            print(f"[{self.data_type.upper()}] Validation set: time points {train_end+1} to {val_end} ({self.val_ratio})")
-            print(f"[{self.data_type.upper()}] Validation set time range: {self.timestamps.min()} to {self.timestamps.max()}")
-        elif self.data_type == 'test':
-            self.data = self.data.iloc[val_end:].copy()
-            self.timestamps = self.timestamps.iloc[val_end:].copy()
-            print(f"[{self.data_type.upper()}] Test set: after time point {val_end+1}")
-            print(f"[{self.data_type.upper()}] Test set time range: {self.timestamps.min()} to {self.timestamps.max()}")
-        
-        print(f"[{self.data_type.upper()}] Data length after split: {len(self.data)} records")
-    
+        train_cap = int(os.environ.get("KRONOS_MAX_TRAIN_SAMPLES", "64000"))
+        val_cap = int(os.environ.get("KRONOS_MAX_VAL_SAMPLES", "9600"))
+        if self.data_type == 'train' and self.n_samples > train_cap:
+            print(f"[{data_type.upper()}] Total window permutations: {self.n_samples:,}. Capping epoch length to {train_cap:,} balanced samples.")
+            self.n_samples = train_cap
+        elif self.data_type == 'val' and self.n_samples > val_cap:
+            self.n_samples = val_cap
+            
+        print(f"[{data_type.upper()}] Initialized {len(self.segments)} timeframe segment(s), available samples per epoch: {self.n_samples:,}")
+
+    def _load_and_preprocess_all(self):
+        for fpath in self.file_list:
+            fname = os.path.basename(fpath)
+            try:
+                df = pd.read_csv(fpath)
+            except Exception as e:
+                print(f"Error reading {fpath}: {e}")
+                continue
+                
+            df['timestamps'] = pd.to_datetime(df['timestamps'])
+            df = df.sort_values('timestamps').reset_index(drop=True)
+            
+            timestamps = df['timestamps'].copy()
+            df['minute'] = timestamps.dt.minute
+            df['hour'] = timestamps.dt.hour
+            df['weekday'] = timestamps.dt.weekday
+            df['day'] = timestamps.dt.day
+            df['month'] = timestamps.dt.month
+            
+            data = df[self.feature_list + self.time_feature_list].copy()
+            if data.isnull().any().any():
+                data = data.ffill().bfill()
+                
+            total_length = len(data)
+            train_end = int(total_length * self.train_ratio)
+            val_end = int(total_length * (self.train_ratio + self.val_ratio))
+            
+            if self.data_type == 'train':
+                split_data = data.iloc[:train_end].copy()
+                split_ts = timestamps.iloc[:train_end].copy()
+            elif self.data_type == 'val':
+                split_data = data.iloc[train_end:val_end].copy()
+                split_ts = timestamps.iloc[train_end:val_end].copy()
+            elif self.data_type == 'test':
+                split_data = data.iloc[val_end:].copy()
+                split_ts = timestamps.iloc[val_end:].copy()
+            else:
+                split_data = data.copy()
+                split_ts = timestamps.copy()
+                
+            max_start = len(split_data) - self.window
+            if max_start >= 0:
+                self.segments.append({
+                    "name": fname,
+                    "data": split_data.reset_index(drop=True),
+                    "timestamps": split_ts.reset_index(drop=True),
+                    "max_start": max_start
+                })
+                print(f"  [{self.data_type.upper()}] Segment {fname}: {len(split_data):,} rows ({split_ts.min()} to {split_ts.max()}), {max_start + 1:,} valid windows")
+            else:
+                print(f"  [{self.data_type.upper()}] Segment {fname}: {len(split_data):,} rows is shorter than window {self.window}, skipping.")
+
     def set_epoch_seed(self, epoch):
         epoch_seed = self.seed + epoch
         self.py_rng.seed(epoch_seed)
         self.current_epoch = epoch
-    
+
     def __len__(self):
         return self.n_samples
-    
+
     def __getitem__(self, idx):
-        max_start = len(self.data) - self.window
-        if max_start <= 0:
-            raise ValueError("Data length insufficient to create samples")
+        num_segs = len(self.segments)
+        seg_idx = idx % num_segs
+        sub_idx = idx // num_segs
+        
+        seg = self.segments[seg_idx]
+        max_start = seg["max_start"]
         
         if self.data_type == 'train':
             epoch = getattr(self, 'current_epoch', 0)
-            start_idx = (idx * 9973 + (epoch + 1) * 104729) % (max_start + 1)
+            start_idx = (sub_idx * 9973 + (epoch + 1) * 104729) % (max_start + 1)
         else:
-            start_idx = idx % (max_start + 1)
-        
+            start_idx = sub_idx % (max_start + 1)
+            
         end_idx = start_idx + self.window
-        
-        window_data = self.data.iloc[start_idx:end_idx]
+        window_data = seg["data"].iloc[start_idx:end_idx]
         
         x = window_data[self.feature_list].values.astype(np.float32)
         x_stamp = window_data[self.time_feature_list].values.astype(np.float32)
@@ -128,7 +160,6 @@ class CustomKlineDataset(Dataset):
         
         x_tensor = torch.from_numpy(x)
         x_stamp_tensor = torch.from_numpy(x_stamp)
-        
         return x_tensor, x_stamp_tensor
 
 
@@ -215,7 +246,7 @@ def create_dataloaders(config):
         batch_size=config.batch_size,
         shuffle=(train_sampler is None),
         num_workers=config.num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         drop_last=True,
         sampler=train_sampler
     )
@@ -225,7 +256,7 @@ def create_dataloaders(config):
         batch_size=config.batch_size,
         shuffle=False,
         num_workers=config.num_workers,
-        pin_memory=True,
+        pin_memory=torch.cuda.is_available(),
         drop_last=False,
         sampler=val_sampler
     )
@@ -372,7 +403,7 @@ def main():
                        help='Configuration file path (default: config.yaml)')
     args = parser.parse_args()
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Using device: {device}")
     
     config = CustomFinetuneConfig(args.config)

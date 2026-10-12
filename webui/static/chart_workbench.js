@@ -6,9 +6,9 @@ const ChartWorkbench = (() => {
         legend:true, crosshair:true, log:false, scrollZoom:true, rangeSlider:false,
         history:true, forecast:true, actual:true, volume:false, rsi:false, rsiPeriod:14,
         macd:false, fast:12, slow:26, signal:9, bollinger:false, bandPeriod:20, bandSigma:2,
-        vwap:false, up:'#26a69a', down:'#ef5350', forecastUp:'#60a5fa', forecastDown:'#c084fc',
-        mas:[{enabled:true,type:'SMA',period:20,source:'close',color:'#f59e0b',width:2,offset:0,dash:'solid'},
-             {enabled:true,type:'EMA',period:50,source:'close',color:'#38bdf8',width:2,offset:0,dash:'solid'}]
+        vwap:false, up:'#00f5d4', down:'#ff2a85', forecastUp:'#00bbf9', forecastDown:'#d946ef',
+        mas:[{enabled:true,type:'SMA',period:20,source:'close',color:'#00f5d4',width:2,offset:0,dash:'solid'},
+             {enabled:true,type:'EMA',period:50,source:'close',color:'#ff2a85',width:2,offset:0,dash:'solid'}]
     };
     let config = structuredClone(defaults);
     const charts = new Map();
@@ -169,16 +169,20 @@ const ChartWorkbench = (() => {
         if (config.vwap && config.history) lines(traces,observed.map(b=>b.timestamp),ChartMath.vwap(observed),'Session VWAP',{color:'#f472b6',width:2});
         const panes=[]; if(config.volume) panes.push('Volume'); if(config.rsi) panes.push('RSI'); if(config.macd) panes.push('MACD');
         const bottom=panes.length * 0.16;
-        const mobile=state.plot.clientWidth<600;
-        const axis={showgrid:config.grid,gridcolor:grid,zeroline:false,showspikes:config.crosshair,spikemode:'across',spikesnap:'cursor',spikecolor:text};
-        const layout={paper_bgcolor:bg,plot_bgcolor:bg,font:{color:text,size:config.fontSize},autosize:true,height:document.fullscreenElement===state.workspace || state.workspace.classList.contains('chart-overlay')?Math.max(config.height,window.innerHeight-200):config.height,
-            margin:{l:mobile?48:70,r:mobile?28:70,t:20,b:100},showlegend:config.legend,legend:{orientation:'h',x:0,y:mobile?-0.3:-0.12,yanchor:'top',bgcolor:bg,font:{color:text,size:mobile?11:config.fontSize}},
+        const plotWidth=Math.max(320, Math.floor(state.plot.clientWidth || (state.workspace ? state.workspace.clientWidth - 24 : 800)));
+        const mobile=plotWidth<640;
+        const targetHeight=document.fullscreenElement===state.workspace || state.workspace.classList.contains('chart-overlay')?Math.max(config.height,window.innerHeight-200):config.height;
+        state.plot.style.height=`${targetHeight}px`;
+        state.plot.style.minHeight=`${targetHeight}px`;
+        const axis={showgrid:config.grid,gridcolor:grid,zeroline:false,automargin:true,showspikes:config.crosshair,spikemode:'across',spikesnap:'cursor',spikecolor:text};
+        const layout={paper_bgcolor:bg,plot_bgcolor:bg,font:{color:text,size:mobile?Math.min(11,config.fontSize):config.fontSize},autosize:false,width:plotWidth,height:targetHeight,
+            margin:{l:mobile?56:76,r:mobile?28:48,t:28,b:110},showlegend:config.legend,legend:{orientation:'h',x:0,xanchor:'left',y:mobile?-0.24:-0.16,yanchor:'top',bgcolor:bg,font:{color:text,size:mobile?10.5:Math.min(12,config.fontSize)}},
             hovermode:'x',dragmode:'pan',uirevision:state.id + (state.result?.feed ? `${state.result.feed.ticker}-${state.result.feed.interval_minutes}` : ''), xaxis:{...axis,type:config.gaps?'date':'category',categoryorder:'array',categoryarray:[...new Set(x)],rangeslider:{visible:config.rangeSlider},anchor:'free',position:0},
             yaxis:{...axis,title:'Price',type:config.log?'log':'linear',domain:[bottom,1],fixedrange:false}};
         // Gapless bars retain original timestamps. Explicit labels avoid category
         // axes printing every ISO timestamp or compressing the trading session.
         if (!config.gaps && x.length) {
-            const unique=[...new Set(x)], count=mobile?3:8;
+            const unique=[...new Set(x)], count=mobile?4:7;
             layout.xaxis.tickvals=[...new Set(Array.from({length:Math.min(count,unique.length)},(_,i)=>unique[Math.round(i*(unique.length-1)/Math.max(1,Math.min(count,unique.length)-1))]))];
             const zone=state.result?.feed?(state.result.feed.timezone||'America/New_York'):undefined;
             layout.xaxis.ticktext=layout.xaxis.tickvals.map(stamp=>mobile?new Date(stamp).toLocaleDateString(undefined,{timeZone:zone,month:'short',day:'numeric'})+'<br>'+new Date(stamp).toLocaleTimeString(undefined,{timeZone:zone,hour:'2-digit',minute:'2-digit'}):new Date(stamp).toLocaleString(undefined,{timeZone:zone,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}));
@@ -198,15 +202,20 @@ const ChartWorkbench = (() => {
                 traces.push({type:'bar',x,y:m.histogram,name:'MACD histogram',yaxis:axisName,marker:{color:m.histogram.map(v=>v>=0?config.up:config.down)}});
             }
         });
-        const legendRows=Math.ceil(traces.filter(t=>t.showlegend!==false).reduce((length,t)=>length+(t.name?.length||0)+8,0)*config.fontSize*0.6/Math.max(250,state.plot.clientWidth-100));
-        layout.margin.b=config.legend?Math.min(300,(mobile?90:60)+legendRows*24):60;
+        const legendRows=Math.ceil(traces.filter(t=>t.showlegend!==false).reduce((length,t)=>length+(t.name?.length||0)+8,0)*config.fontSize*0.6/Math.max(250,plotWidth-100));
+        layout.margin.b=config.legend?Math.min(300,(mobile?95:75)+legendRows*24):60;
         layout.newshape={line:{color:'#f59e0b',width:2}};
-        await Plotly.react(state.plot,traces,layout,{responsive:true,scrollZoom:config.scrollZoom,displaylogo:false,modeBarButtonsToAdd:['drawline','drawopenpath','drawrect','eraseshape'],toImageButtonOptions:{format:'png',filename:`Kronos-${state.id}`,width:1600,height:config.height,scale:2}});
+        await Plotly.react(state.plot,traces,layout,{responsive:false,scrollZoom:config.scrollZoom,displaylogo:false,modeBarButtonsToAdd:['drawline','drawopenpath','drawrect','eraseshape'],toImageButtonOptions:{format:'png',filename:`Kronos-${state.id}`,width:1600,height:config.height,scale:2}});
     }
-    function redraw() { charts.forEach(state=>draw(state).catch(error=>message(error.message))); }
-    function resize() { requestAnimationFrame(()=>charts.forEach(state=>{if(state.figure) Plotly.Plots.resize(state.plot);})); }
-    document.addEventListener('fullscreenchange',()=>{redraw(); resize();});
-    document.addEventListener('keydown',event=>{if(event.key==='Escape'){charts.forEach(state=>state.workspace.classList.remove('chart-overlay')); redraw(); resize();}});
+    function redraw() { charts.forEach(state=>{ if (state.figure) draw(state).catch(error=>message(error.message)); }); }
+    function resize() { redraw(); }
+    let cwResizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (cwResizeTimer) clearTimeout(cwResizeTimer);
+        cwResizeTimer = setTimeout(() => redraw(), 100);
+    });
+    document.addEventListener('fullscreenchange',()=>{redraw();});
+    document.addEventListener('keydown',event=>{if(event.key==='Escape'){charts.forEach(state=>state.workspace.classList.remove('chart-overlay')); redraw();}});
     document.addEventListener('DOMContentLoaded',()=>{['live-chart','chart'].forEach(setup);});
     return {getSettings:()=>structuredClone(config), validateSettings:validated,
         applySettings(input) { config=validated(input); persist(); sync(); redraw(); },
