@@ -8,6 +8,7 @@ import pytest
 from flask import Flask
 
 from webui import app as ui
+from webui import db_store
 from webui.db_store import KronosResearchDB
 from webui.options_service import _calculate_max_pain, validate_equity_ticker
 from webui.polygon_feed import FeedError
@@ -35,8 +36,14 @@ def test_max_pain_calculation():
 @pytest.mark.postgres
 def test_postgres_research_db_and_testing_suite_routes(monkeypatch):
     db = KronosResearchDB()
-    if not db.ensure_schema():
-        pytest.skip(f"kronos_research Postgres unavailable: {db.last_error}")
+    # Skip only when Postgres itself is unavailable; schema errors must still fail.
+    if not db_store.PSYCOPG_AVAILABLE:
+        pytest.skip("kronos_research Postgres unavailable: psycopg not installed")
+    try:
+        db.connect().close()
+    except db_store.psycopg.OperationalError as error:
+        pytest.skip(f"kronos_research Postgres unavailable: {error}")
+    assert db.ensure_schema() is True, db.last_error
 
     app = Flask(__name__)
     discovered = discover_and_register_models(ui, db)

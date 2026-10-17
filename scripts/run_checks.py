@@ -35,7 +35,8 @@ def main():
     if not args.no_node:
         node = shutil.which("node")
         if node is None:
-            print("\nNode.js not found; skipping JS tests (use --no-node to silence).")
+            print("\nNode.js not found; JS tests cannot run. Install Node.js or pass --no-node to skip them.")
+            results["node"] = False
         else:
             for test in NODE_TESTS:
                 results[test.relative_to(ROOT).as_posix()] = run(test.name, [node, str(test)])
