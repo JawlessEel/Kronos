@@ -32,7 +32,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 { id: 'opt-oi-gex-chart', width: 1240, height: 560, alt: 'Options Open Interest & Dealer GEX' },
                 { id: 'opt-iv-smile-chart', width: 1240, height: 560, alt: 'Options Implied Volatility Smile' },
                 { id: 'live-chart', width: 1240, height: 560, alt: 'Polygon Live Candles and Kronos Forecast' },
-                { id: 'chart', width: 1240, height: 560, alt: 'Historical Forecast Comparison' }
+                { id: 'chart', width: 1240, height: 560, alt: 'Historical Forecast Comparison' },
+                { id: 'chart-daily-macro', width: 1240, height: 460, alt: 'Daily Macro Timeframe (1D) — 50-Day SMA & Daily ATR Budget' },
+                { id: 'chart-intraday-5m', width: 1240, height: 540, alt: 'Intraday Execution Timeframe (5M) — 4 Liquidity Levels & Kronos Forecast' }
             ];
             const charts = new Map();
             for (const spec of chartSpecs) {
@@ -51,7 +53,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            const original = document.querySelector('.container');
+            const original = document.querySelector('.container, .three-r-container');
+            if (!original) {
+                throw new Error('Could not locate dashboard container to export.');
+            }
+            const isThreeR = original.classList.contains('three-r-container');
             clone = original.cloneNode(true);
             clone.classList.add('pdf-export-clone');
             clone.setAttribute('aria-hidden', 'true');
@@ -88,7 +94,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 '#opt-fetch-btn',
                 '#bt-run-btn',
                 '#pg-refresh-btn',
-                '.lab-actions'
+                '.lab-actions',
+                '.ctrl-action',
+                '[id="3r-run-btn"]'
             ].join(',')).forEach(node => node.remove());
 
             // Keep <details> closed unless the user explicitly opened them on screen
@@ -123,7 +131,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 4. Replace Plotly containers with crisp high-DPI images (or compact empty state)
             for (const spec of chartSpecs) {
-                const plot = clone.querySelector('#' + spec.id);
+                const plot = clone.querySelector(`[id="${spec.id}"]`);
                 if (!plot) continue;
                 plot.replaceChildren();
                 plot.style.height = 'auto';
@@ -145,6 +153,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         : 'Historical file comparison chart not active at snapshot time.';
                     note.style.cssText = 'padding:10px 14px;border-radius:8px;background:rgba(8,10,20,0.65);border:1px solid rgba(148,163,184,0.16);color:#94a3b8;font-size:12px;';
                     workspace.append(note);
+                } else if (spec.id === 'chart-daily-macro' || spec.id === 'chart-intraday-5m') {
+                    const note = document.createElement('div');
+                    note.textContent = spec.id === 'chart-daily-macro'
+                        ? 'Daily Macro (1D) chart not active at snapshot time.'
+                        : 'Intraday Execution (5M) chart not active at snapshot time.';
+                    note.style.cssText = 'padding:10px 14px;border-radius:8px;background:rgba(8,10,20,0.65);border:1px solid rgba(148,163,184,0.16);color:#94a3b8;font-size:12px;';
+                    plot.append(note);
                 } else {
                     plot.remove();
                 }
@@ -170,6 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     backdrop-filter: none !important;
                     -webkit-backdrop-filter: none !important;
                     box-shadow: none !important;
+                    content-visibility: visible !important;
+                    contain-intrinsic-size: none !important;
+                    contain: none !important;
+                    container-type: normal !important;
                 }
                 /* Fix html2canvas background-clip:text bug */
                 .pdf-export-clone .header h1,
@@ -236,17 +255,41 @@ document.addEventListener('DOMContentLoaded', () => {
                     -webkit-text-fill-color: #ffbe0b !important;
                     color: #ffbe0b !important;
                 }
-                /* Ensure tables fit 100% horizontally without clipping */
+                /* Prevent section blocks and tables from clipping or overlapping subsequent sections */
+                .pdf-export-clone .hub-section-block {
+                    display: block !important;
+                    position: relative !important;
+                    clear: both !important;
+                    height: auto !important;
+                    min-height: 0 !important;
+                    max-height: none !important;
+                    max-block-size: none !important;
+                    overflow: visible !important;
+                    margin-top: 24px !important;
+                    margin-bottom: 24px !important;
+                }
+                /* Ensure tables fit 100% horizontally & vertically without clipping or overlapping */
                 .pdf-export-clone .table-wrapper,
-                .pdf-export-clone .forecast-candle-scroll {
+                .pdf-export-clone .table-scroll-wrap,
+                .pdf-export-clone .forecast-candle-scroll,
+                .pdf-export-clone .forecast-table-scroll {
                     overflow: visible !important;
                     max-height: none !important;
+                    max-block-size: none !important;
+                    height: auto !important;
+                    block-size: auto !important;
                     width: 100% !important;
                     border: 1px solid rgba(0, 245, 212, 0.25) !important;
                     border-radius: 10px !important;
+                    margin-bottom: 18px !important;
+                }
+                .pdf-export-clone .hub-table thead,
+                .pdf-export-clone .hub-table tbody th {
+                    position: static !important;
                 }
                 .pdf-export-clone .hub-table,
                 .pdf-export-clone .comparison-table,
+                .pdf-export-clone .scaling-matrix-table,
                 .pdf-export-clone .forecast-candle-table {
                     width: 100% !important;
                     table-layout: auto !important;
@@ -257,6 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 .pdf-export-clone .hub-table td,
                 .pdf-export-clone .comparison-table th,
                 .pdf-export-clone .comparison-table td,
+                .pdf-export-clone .scaling-matrix-table th,
+                .pdf-export-clone .scaling-matrix-table td,
                 .pdf-export-clone .forecast-candle-table th,
                 .pdf-export-clone .forecast-candle-table td {
                     padding: 7px 9px !important;
@@ -266,6 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     color: #e2e8f0 !important;
                 }
                 .pdf-export-clone .hub-table th,
+                .pdf-export-clone .scaling-matrix-table th,
                 .pdf-export-clone .forecast-candle-table th {
                     background: #13182e !important;
                     color: #00f5d4 !important;
@@ -291,8 +337,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 .pdf-export-clone .control-panel > .preset-panel,
                 .pdf-export-clone .control-panel > section[aria-label="Polygon live feed"],
                 .pdf-export-clone .control-panel > .data-info,
+                .pdf-export-clone .control-panel > .time-window-container,
                 .pdf-export-clone .control-panel > .status {
                     grid-column: 1 / -1 !important;
+                }
+                .pdf-export-clone .time-window-info {
+                    display: flex !important;
+                    flex-wrap: wrap !important;
+                    gap: 8px 18px !important;
+                    justify-content: space-between !important;
                 }
                 .pdf-export-clone .control-panel > hr {
                     margin: 4px 0 !important;
@@ -344,11 +397,13 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
             clone.prepend(pdfStyle);
 
-            const header = clone.querySelector('.header');
-            const stamp = document.createElement('p');
-            stamp.textContent = `Report Snapshot Captured: ${captured.toLocaleString()} (${captured.toISOString()})`;
-            stamp.style.cssText = 'font-size:12px;color:#00f5d4;margin-top:6px;font-family:JetBrains Mono,monospace;';
-            header.append(stamp);
+            const header = clone.querySelector('.header, .three-r-header .header-left, .three-r-header');
+            if (header) {
+                const stamp = document.createElement('p');
+                stamp.textContent = `Report Snapshot Captured: ${captured.toLocaleString()} (${captured.toISOString()})`;
+                stamp.style.cssText = 'font-size:12px;color:#00f5d4;margin-top:6px;font-family:JetBrains Mono,monospace;';
+                header.append(stamp);
+            }
 
             document.body.append(clone);
 
@@ -404,7 +459,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 7. Create ONE single continuous scrolling PDF page sized dynamically to the rendered dashboard
             const pdf = await PDFLib.PDFDocument.create();
-            pdf.setTitle('Kronos Research & Options Analytics Report');
+            pdf.setTitle(
+                isThreeR
+                    ? 'Kronos · The 3R Rule Structural Trading System Report'
+                    : 'Kronos Research & Options Analytics Report'
+            );
             pdf.setCreator('Kronos Web UI');
             pdf.setCreationDate(captured);
             const font = await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -432,10 +491,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 x: margin, y: pageHeight - margin - 2, width: contentWidth, height: 1.5,
                 color: PDFLib.rgb(0.0, 0.96, 0.83)
             });
-            page.drawText('KRONOS MULTI-MODEL FORECASTING, OPTIONS GEX & POSTGRES RESEARCH REPORT', {
-                x: margin, y: pageHeight - margin + 5, size: 8.5, font: fontBold,
-                color: PDFLib.rgb(0.0, 0.96, 0.83)
-            });
+            page.drawText(
+                isThreeR
+                    ? 'KRONOS × DOUG 3R RULE STRUCTURAL TRADING SYSTEM — MULTI-TIMEFRAME & RISK SIZING REPORT'
+                    : 'KRONOS MULTI-MODEL FORECASTING, OPTIONS GEX & POSTGRES RESEARCH REPORT',
+                {
+                    x: margin, y: pageHeight - margin + 5, size: 8.5, font: fontBold,
+                    color: PDFLib.rgb(0.0, 0.96, 0.83)
+                }
+            );
             page.drawText(`Continuous Scroll View | Captured ${captured.toLocaleString()}`, {
                 x: pageWidth - margin - 250, y: pageHeight - margin + 5, size: 8, font,
                 color: PDFLib.rgb(0.65, 0.72, 0.82)
@@ -483,7 +547,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 color: PDFLib.rgb(0.0, 0.96, 0.83)
             });
 
-            const filename = `Kronos-WebUI-${captured.toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}.pdf`;
+            const prefix = isThreeR ? 'Kronos-3R-Report' : 'Kronos-WebUI';
+            const shortId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+                ? crypto.randomUUID().slice(0, 8)
+                : Math.random().toString(36).slice(2, 10);
+            const filename = `${prefix}-${captured.toISOString().replace(/[:.]/g, '-')}-${shortId}.pdf`;
             const url = URL.createObjectURL(new Blob([await pdf.save()], { type: 'application/pdf' }));
             const link = document.createElement('a');
             link.href = url;

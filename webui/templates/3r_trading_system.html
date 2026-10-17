@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Kronos · The 3R Rule Structural Trading System</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='chart_workbench.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='testing_dashboard.css') }}?v=20261016b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='3r_trading_system.css') }}?v=20261016b">
+</head>
+<body class="three-r-body">
+    <div class="three-r-container">
+        <!-- TOP NAVIGATION & HEADER -->
+        <header class="three-r-header">
+            <div class="header-left">
+                <div class="brand-kicker">DOUG (THE RUMERS · 26-YEAR VETERAN) × KRONOS FOUNDATION MODEL</div>
+                <h1>⚡ The 3R Rule Structural Trading System</h1>
+                <p class="header-subtitle">
+                    Multi-timeframe structural analysis (1D 50-SMA &amp; 14-ATR + 5M 4 Liquidity Levels), autoregressive K-line forecast confluence, structural stop-loss sizing ($20–$50 fixed risk unit), and "The Wall Street Raise" 10% scaling engine.
+                </p>
+            </div>
+            <div class="header-actions" data-html2canvas-ignore="true">
+                <a href="/" class="nav-pill-btn nav-secondary" title="Return to Main Kronos Forecasting &amp; Options Hub">
+                    ← Back to Main Kronos Dashboard
+                </a>
+                <button id="download-ui-pdf" type="button" class="nav-pill-btn nav-primary">
+                    📄 Export 3R Report as PDF
+                </button>
+                <span id="pdf-export-status" role="status"></span>
+            </div>
+        </header>
+
+        <!-- PHILOSOPHY & MORNING ROUTINE WORKFLOW RIBBON -->
+        <section class="routine-ribbon" aria-label="Morning Routine 4-Step Workflow">
+            <div class="routine-step" id="step-card-1">
+                <span class="step-num">STEP 1</span>
+                <div>
+                    <strong>Daily Bias Check (1D)</strong>
+                    <p id="step-1-desc">Evaluate Price vs. 50-Day SMA → Lock 80%–90% trade quota</p>
+                </div>
+            </div>
+            <div class="routine-step" id="step-card-2">
+                <span class="step-num">STEP 2</span>
+                <div>
+                    <strong>ATR Range Budget (1D)</strong>
+                    <p id="step-2-desc">Read 14-Day ATR → Check consumed expansion &amp; remaining capacity</p>
+                </div>
+            </div>
+            <div class="routine-step" id="step-card-3">
+                <span class="step-num">STEP 3</span>
+                <div>
+                    <strong>Structural Mapping (5M)</strong>
+                    <p id="step-3-desc">Plot Range High/Low (PDH/PDL) + look left for Swing High/Low</p>
+                </div>
+            </div>
+            <div class="routine-step" id="step-card-4">
+                <span class="step-num">STEP 4</span>
+                <div>
+                    <strong>Confluence &amp; Execution</strong>
+                    <p id="step-4-desc">Wait for liquidity boundary test + Kronos confirmation → Structural Stop</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTROL BAR & GUIDED 3R SCENARIO SELECTOR -->
+        <section class="three-r-controls-card" aria-label="3R System Controls">
+            <div class="asset-quick-bar">
+                <span class="bar-label">Recommended 3R Assets:</span>
+                {% for asset in recommended_assets %}
+                <button type="button"
+                        class="asset-pill {% if loop.first %}active{% endif %}"
+                        data-ticker="{{ asset.symbol }}"
+                        title="{{ asset.name }} — {{ asset.notes }}">
+                    {{ asset.symbol }}
+                    <small>{{ asset.category.split(' ')[0] }}</small>
+                </button>
+                {% endfor %}
+            </div>
+
+            <div class="scenario-quick-bar">
+                <span class="bar-label">3R Setup Scenarios &amp; Feed Mode:</span>
+                <button type="button" class="scenario-btn active" data-scenario="live_market">
+                    📡 Real Dataset / Kronos Neural Forecast
+                </button>
+                <button type="button" class="scenario-btn" data-scenario="topside_short">
+                    🔻 Primary Setup: Topside Compression Reversal (Short)
+                </button>
+                <button type="button" class="scenario-btn" data-scenario="bullish_dip_long">
+                    🟢 Alternative Setup: Bullish Dip Reversal / Range Low Bounce (Long)
+                </button>
+                <button type="button" class="scenario-btn scenario-warn" data-scenario="chased_breakout_trap">
+                    ⚠️ Anti-Pattern: Chased Breakout Trap &amp; ATR Exhaustion
+                </button>
+            </div>
+
+            <div class="controls-form-grid">
+                <div class="ctrl-field">
+                    <label for="3r-ticker">Tradable Asset</label>
+                    <input id="3r-ticker" type="text" value="SPY" maxlength="12">
+                </div>
+                <div class="ctrl-field">
+                    <label for="3r-data-source">Data Feed</label>
+                    <select id="3r-data-source">
+                        <option value="local" selected>Local 23-Yr Multi-Timeframe CSV</option>
+                        <option value="live">Live Polygon Feed (1D + 5M)</option>
+                    </select>
+                </div>
+                <div class="ctrl-field">
+                    <label for="3r-pred-len">Kronos Horizon (5M Bars)</label>
+                    <input id="3r-pred-len" type="number" min="6" max="78" value="24">
+                </div>
+                <div class="ctrl-field">
+                    <label for="3r-lookback">5M Lookback Bars</label>
+                    <input id="3r-lookback" type="number" min="64" max="512" value="256">
+                </div>
+                <div class="ctrl-field">
+                    <label for="3r-session-offset">Historical Session Offset (Days Back)</label>
+                    <input id="3r-session-offset" type="number" min="0" max="90" value="0">
+                </div>
+                <div class="ctrl-field">
+                    <label for="3r-use-model">Inference Engine</label>
+                    <select id="3r-use-model">
+                        <option value="true" selected>Kronos Neural Predictor (Tuned Weights)</option>
+                        <option value="false">Fast Structural Trajectory Mode</option>
+                    </select>
+                </div>
+                <div class="ctrl-field ctrl-action">
+                    <button id="3r-run-btn" type="button" class="run-3r-btn">
+                        🚀 Run 3R Multi-Timeframe Analysis
+                    </button>
+                </div>
+            </div>
+            <div id="3r-status-line" class="status-line" role="status">
+                Initializing 3R Structural Trading System...
+            </div>
+        </section>
+
+        <!-- ANTI-PATTERN WARNING BANNER (DYNAMICALLY ACTIVATED FOR TRAPS / ATR EXHAUSTION) -->
+        <div id="3r-warning-banner" class="trap-warning-banner" style="display: none;" role="alert">
+            <div class="trap-icon">🚨</div>
+            <div class="trap-content">
+                <strong id="3r-warning-title">⚠️ CHASED BREAKOUT TRAP DETECTED - DO NOT GO LONG</strong>
+                <p id="3r-warning-detail"></p>
+            </div>
+        </div>
+
+        <!-- PANEL 1: TOP METRICS & BIAS BANNER -->
+        <section id="panel-1-top-banner" class="panel-1-grid" aria-label="Panel 1: Top Metrics and Bias Banner">
+            <!-- Card 1A: Midterm Trend Bias -->
+            <div class="metric-banner-card" id="bias-banner-card">
+                <div class="card-eyebrow">PILLAR 1 · MIDTERM TREND BIAS (1D 50-SMA)</div>
+                <div class="regime-badge-row">
+                    <span id="regime-main-badge" class="regime-badge bullish">BULLISH BIAS (Above 50 SMA)</span>
+                    <span id="regime-price-vs-sma" class="sma-diff-pill">+$0.00 (+0.00%)</span>
+                </div>
+                <div class="metric-kv-row">
+                    <div><span>Current Spot:</span> <strong id="metric-spot-price">$0.00</strong></div>
+                    <div><span>Daily 50-SMA:</span> <strong id="metric-sma50">$0.00</strong></div>
+                    <div><span>Session Date:</span> <strong id="metric-session-date">-</strong></div>
+                </div>
+                <p id="regime-contrarian-note" class="card-footnote">
+                    Contrarian shorts restricted to 50% size &amp; fast scalps (30s–2m).
+                </p>
+            </div>
+
+            <!-- Card 1B: Directional Quota Meter -->
+            <div class="metric-banner-card" id="quota-banner-card">
+                <div class="card-eyebrow">EXECUTION QUOTA &amp; RISK ALLOCATION</div>
+                <div class="quota-headline">
+                    <span id="quota-directive-text">80%–90% TRADES ON LONG SIDE</span>
+                    <span class="quota-unit-badge">100% Standard Risk Unit</span>
+                </div>
+                <div class="quota-meter-track" aria-label="Directional Quota Meter">
+                    <div id="quota-primary-bar" class="quota-primary-fill" style="width: 85%;">
+                        <span id="quota-primary-label">85% Trend Side (3:1 – 6:1 R:R)</span>
+                    </div>
+                    <div id="quota-contrarian-bar" class="quota-contrarian-fill" style="width: 15%;">
+                        <span>15% Scalp</span>
+                    </div>
+                </div>
+                <p id="quota-archetypes-text" class="card-footnote">
+                    Optimal Setups: Bullish Dip Reversal, Breakout Continuation
+                </p>
+            </div>
+
+            <!-- Card 1C: ATR Capacity Gauge -->
+            <div class="metric-banner-card" id="atr-banner-card">
+                <div class="card-eyebrow">PILLAR 3 · DAILY ATR CAPACITY &amp; EXHAUSTION GAUGE</div>
+                <div class="atr-headline-row">
+                    <div>
+                        <span class="atr-big-label">ATR Consumed:</span>
+                        <strong id="atr-consumed-pct" class="atr-pct-val">0.0%</strong>
+                    </div>
+                    <span id="atr-state-badge" class="atr-badge normal">NORMAL RANGE</span>
+                </div>
+                <div class="atr-gauge-track" aria-label="ATR Consumed Progress Bar">
+                    <div id="atr-gauge-fill" class="atr-gauge-fill" style="width: 0%;"></div>
+                </div>
+                <div class="metric-kv-row">
+                    <div><span>14-Day ATR:</span> <strong id="metric-atr14">$0.00</strong></div>
+                    <div><span>Intraday Range:</span> <strong id="metric-intraday-exp">$0.00</strong></div>
+                    <div><span>Remaining ATR Budget:</span> <strong id="metric-remaining-atr" class="highlight-cyan">$0.00</strong></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MAIN WORKBENCH SPLIT: PANEL 2 (MULTI-TIMEFRAME CHARTS) + PANEL 3 (CONFLUENCE SCREENER) -->
+        <section class="workbench-main-grid" aria-label="Multi-Timeframe Charts and Setup Engine">
+            <!-- PANEL 2: MULTI-TIMEFRAME CHART CANVAS -->
+            <div class="charts-column" id="panel-2-charts">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <div>
+                            <h3>📊 VIEW 1: Daily Macro Timeframe (1D) — 50-Day SMA &amp; Daily ATR Budget</h3>
+                            <p>Establishes mid-term structural control (Pillar 1) and expected daily volatility capacity (Pillar 3).</p>
+                        </div>
+                        <span id="view1-regime-tag" class="mini-tag">1D MACRO</span>
+                    </div>
+                    <div id="chart-daily-macro" class="plotly-canvas-1d"></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <div>
+                            <h3>🎯 VIEW 2: Intraday Execution Timeframe (5M) — 4 Liquidity Levels &amp; Kronos Forecast</h3>
+                            <p>
+                                Overlays <strong>Swing High</strong> (Red dashed), <strong>Range High / PDH</strong> (Red solid),
+                                <strong>Range Low / PDL</strong> (Green solid), <strong>Swing Low</strong> (Green dashed),
+                                <strong>Daily 50-SMA</strong>, <strong>Structural Stop-Loss</strong>, and <strong>Kronos Forecast Cone</strong>.
+                            </p>
+                        </div>
+                        <span id="view2-zone-tag" class="mini-tag">5M EXECUTION</span>
+                    </div>
+                    <div id="chart-intraday-5m" class="plotly-canvas-5m"></div>
+
+                    <!-- 4 Liquidity Horizontal Levels Strip -->
+                    <div class="liquidity-levels-strip">
+                        <div class="liq-pill sell-outer">
+                            <span>SWING HIGH (SH · Resistance Pivot)</span>
+                            <strong id="lvl-swing-high">$0.00</strong>
+                        </div>
+                        <div class="liq-pill sell-inner">
+                            <span>RANGE HIGH (PDH · Prev Day High)</span>
+                            <strong id="lvl-range-high">$0.00</strong>
+                        </div>
+                        <div class="liq-pill buy-inner">
+                            <span>RANGE LOW (PDL · Prev Day Low)</span>
+                            <strong id="lvl-range-low">$0.00</strong>
+                        </div>
+                        <div class="liq-pill buy-outer">
+                            <span>SWING LOW (SL · Support Floor)</span>
+                            <strong id="lvl-swing-low">$0.00</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT SIDEBAR: PANEL 3 (CONFLUENCE & SETUP SCREENER CARD) -->
+            <aside class="screener-column" id="panel-3-confluence">
+                <div class="engine-card">
+                    <div class="card-eyebrow">PANEL 3 · TRADE SETUP ENGINE &amp; CONFLUENCE SCREENER</div>
+                    <h3 id="setup-archetype-title" class="setup-archetype-banner">Evaluating Market Structure...</h3>
+
+                    <!-- Alignment Score (0-100) Ring / Bar -->
+                    <div class="confluence-score-box">
+                        <div class="score-header">
+                            <span>3R Probability Confluence Score</span>
+                            <strong id="confluence-score-val" class="score-number">0 / 100</strong>
+                        </div>
+                        <div class="score-bar-track">
+                            <div id="confluence-score-fill" class="score-bar-fill" style="width: 0%;"></div>
+                        </div>
+                        <div class="score-pillars-grid">
+                            <div class="pillar-chip">
+                                <span>1. Trend Alignment (30pt)</span>
+                                <strong id="pts-trend">0 / 30</strong>
+                            </div>
+                            <div class="pillar-chip">
+                                <span>2. Liquidity Zone (30pt)</span>
+                                <strong id="pts-liquidity">0 / 30</strong>
+                            </div>
+                            <div class="pillar-chip">
+                                <span>3. ATR Feasibility (20pt)</span>
+                                <strong id="pts-feasibility">0 / 20</strong>
+                            </div>
+                            <div class="pillar-chip">
+                                <span>4. 5M Compression (20pt)</span>
+                                <strong id="pts-compression">0 / 20</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Target Feasibility Gate -->
+                    <div id="feasibility-gate-box" class="feasibility-gate feasible">
+                        <div class="gate-title-row">
+                            <span>ATR Target Feasibility Check:</span>
+                            <strong id="feasibility-badge">FEASIBLE WITHIN ATR BUDGET</strong>
+                        </div>
+                        <div class="gate-metrics">
+                            <span>Kronos Projected Move: <strong id="kronos-pred-delta">$0.00</strong> (<span id="kronos-pred-dir">BULLISH</span> → <span id="kronos-pred-target">$0.00</span>)</span>
+                            <span>Remaining Daily ATR: <strong id="gate-rem-atr">$0.00</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Structural Trade Parameters Card -->
+                    <div class="structural-levels-box">
+                        <h4>📐 Structural Execution Parameters (Controllable Risk)</h4>
+                        <div class="struct-param-row">
+                            <span>Recommended Side:</span>
+                            <strong id="exec-side-badge" class="side-pill neutral">WAIT</strong>
+                        </div>
+                        <div class="struct-param-row">
+                            <span>Entry Reference Price:</span>
+                            <strong id="exec-entry-price">$0.00</strong>
+                        </div>
+                        <div class="struct-param-row stop-row">
+                            <span>Structural Stop-Loss Price:</span>
+                            <strong id="exec-stop-price">$0.00</strong>
+                        </div>
+                        <div class="struct-param-row target-row">
+                            <span>Structural Take-Profit Target:</span>
+                            <strong id="exec-target-price">$0.00</strong>
+                        </div>
+                        <div class="struct-param-row rr-row">
+                            <span>Realistic Structural R:R Ratio:</span>
+                            <strong id="exec-rr-ratio">0.00 : 1</strong>
+                        </div>
+                    </div>
+
+                    <!-- Confluence Rationale & Checklist -->
+                    <div class="rationale-box">
+                        <h4>🧠 Structural Confluence &amp; Setup Notes</h4>
+                        <ul id="confluence-rationale-list" class="rationale-list">
+                            <li>Awaiting multi-timeframe evaluation...</li>
+                        </ul>
+                    </div>
+
+                    <!-- Method Over Money Core Tenets -->
+                    <div class="philosophy-mini-card">
+                        <h4>🛡️ Doug's 3R Core Rules</h4>
+                        <ul>
+                            <li><strong>Controllable = Risk:</strong> Entry location, structural stop (above SH / below SL), and share size.</li>
+                            <li><strong>Uncontrollable = Reward:</strong> Only take trades where remaining Daily ATR supports a 3:1+ target.</li>
+                            <li><strong>No Arbitrary $50 Stops:</strong> Never place a blind monetary stop inside the volatility noise band.</li>
+                        </ul>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <!-- BOTTOM WORKBENCH SPLIT: PANEL 4 (RISK & SIZING CALCULATOR) + PANEL 5 (WALL STREET RAISE SCALING TRACKER) -->
+        <section class="bottom-panels-grid" aria-label="Position Sizing Calculator and Account Scaling Tracker">
+            <!-- PANEL 4: RISK & EXECUTION SIZING CALCULATOR -->
+            <div class="engine-card" id="panel-4-sizing-calculator">
+                <div class="card-eyebrow">PANEL 4 · STRUCTURAL RISK &amp; EXECUTION SIZING CALCULATOR</div>
+                <h3>🧮 Dynamic Position Size Calculator (Eliminates Arbitrary Monetary Stops)</h3>
+                <p class="panel-desc">
+                    Formula: <code>Shares / Contracts = Max Allowed Risk ($) ÷ |Entry Price − Structural Stop Price|</code>.
+                    By entering at the liquidity boundary, the distance to the structural stop is minimal, keeping total risk strictly capped at $20–$50.
+                </p>
+
+                <div class="calc-inputs-grid">
+                    <div class="calc-field">
+                        <label for="calc-account-balance">Net Account Balance ($)</label>
+                        <input id="calc-account-balance" type="number" min="100" step="100" value="5000">
+                    </div>
+                    <div class="calc-field">
+                        <label for="calc-max-risk">
+                            Max Allowed Trade Risk ($): <span id="calc-risk-slider-val">$50</span>
+                        </label>
+                        <div class="slider-with-num">
+                            <input id="calc-max-risk-slider" type="range" min="10" max="250" step="5" value="50">
+                            <input id="calc-max-risk" type="number" min="5" max="5000" step="5" value="50">
+                        </div>
+                    </div>
+                    <div class="calc-field">
+                        <label for="calc-entry-price">Entry Price ($)</label>
+                        <input id="calc-entry-price" type="number" step="0.01" value="580.00">
+                    </div>
+                    <div class="calc-field">
+                        <label for="calc-stop-price">Structural Stop Price ($)</label>
+                        <input id="calc-stop-price" type="number" step="0.01" value="579.00">
+                    </div>
+                    <div class="calc-field">
+                        <label for="calc-target-price">Target / Take-Profit Price ($)</label>
+                        <input id="calc-target-price" type="number" step="0.01" value="583.50">
+                    </div>
+                    <div class="calc-field">
+                        <label for="calc-point-mult">Point Multiplier (1=Stock/ETF, 5=MES, 50=ES)</label>
+                        <input id="calc-point-mult" type="number" min="0.1" step="0.5" value="1.0">
+                    </div>
+                </div>
+
+                <div class="calc-results-banner">
+                    <div class="calc-res-item primary">
+                        <span>Exact Position Size</span>
+                        <strong id="res-position-size">50 shares</strong>
+                    </div>
+                    <div class="calc-res-item">
+                        <span>Structural Stop Distance</span>
+                        <strong id="res-stop-distance">$1.00 / unit</strong>
+                    </div>
+                    <div class="calc-res-item">
+                        <span>Total Dollar Risk Exposure</span>
+                        <strong id="res-total-risk">$50.00</strong>
+                    </div>
+                    <div class="calc-res-item">
+                        <span>Projected 3R Profit</span>
+                        <strong id="res-projected-profit" class="profit-green">+$175.00</strong>
+                    </div>
+                    <div class="calc-res-item">
+                        <span>Realized R:R Ratio</span>
+                        <strong id="res-rr-ratio">3.50 : 1</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PANEL 5: ACCOUNT SCALING TRACKER ("THE WALL STREET RAISE") -->
+            <div class="engine-card" id="panel-5-scaling-tracker">
+                <div class="card-eyebrow">PANEL 5 · "THE WALL STREET RAISE" 10% SCALING ENGINE</div>
+                <h3>📈 Consistency Prerequisite &amp; 10% Account Growth Matrix</h3>
+                <p class="panel-desc">
+                    <strong>Prerequisite:</strong> Achieve consistent profitability for at least <strong>3 out of 5 trading days per week</strong> before raising size.
+                    <strong>Rule:</strong> For every <strong>+10% increase</strong> in net account balance, scale position share/contract size by <strong>+10%</strong>.
+                </p>
+
+                <!-- Interactive Weekly Consistency Checkboxes -->
+                <div class="consistency-tracker-box">
+                    <div class="consistency-days-row">
+                        <span class="days-label">Weekly Green Days Checklist (Min 3/5 Required):</span>
+                        <div class="day-checkboxes">
+                            <label class="day-check"><input type="checkbox" class="green-day-cb" checked> Mon</label>
+                            <label class="day-check"><input type="checkbox" class="green-day-cb" checked> Tue</label>
+                            <label class="day-check"><input type="checkbox" class="green-day-cb" checked> Wed</label>
+                            <label class="day-check"><input type="checkbox" class="green-day-cb"> Thu</label>
+                            <label class="day-check"><input type="checkbox" class="green-day-cb"> Fri</label>
+                        </div>
+                        <span id="consistency-status-pill" class="consistency-pill pass">3/5 Green Days ✓</span>
+                    </div>
+
+                    <div class="scaling-inputs-mini">
+                        <div>
+                            <label for="scale-base-balance">Starting Base Balance ($)</label>
+                            <input id="scale-base-balance" type="number" min="500" step="500" value="5000">
+                        </div>
+                        <div>
+                            <label for="scale-consecutive-weeks">Consecutive Consistent Weeks</label>
+                            <input id="scale-consecutive-weeks" type="number" min="0" max="52" value="2">
+                        </div>
+                        <div class="scaling-summary-stat">
+                            <span>Unlocked Raise Tier:</span>
+                            <strong id="scale-tier-unlocked">Base Tier (50 shares)</strong>
+                        </div>
+                    </div>
+                    <p id="scale-guidance-note" class="scale-note"></p>
+                </div>
+
+                <!-- 10% Scaling Matrix Table -->
+                <div class="table-scroll-wrap">
+                    <table class="scaling-matrix-table" aria-label="The Wall Street Raise 10% Scaling Matrix">
+                        <thead>
+                            <tr>
+                                <th>Tier</th>
+                                <th>Account Balance</th>
+                                <th>Growth from Base</th>
+                                <th>Position Sizing</th>
+                                <th>Risk Per Trade ($)</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scaling-ladder-tbody">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="{{ url_for('static', filename='vendor/pdf-lib.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/html2canvas.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='ui_pdf_export.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='3r_trading_system.js') }}?v=20261016b"></script>
+</body>
+</html>

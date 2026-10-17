@@ -39,6 +39,8 @@ def main():
     live_feed = register_live_feed(ui.app, ui)
     from webui.testing_suite import register_testing_suite
     register_testing_suite(ui.app, ui, live_feed=live_feed)
+    from webui.pages import register_3r_trading_system
+    register_3r_trading_system(ui.app, ui, live_feed=live_feed)
     if args.require_auth:
         from dotenv import load_dotenv
         from webui.access import configure_access
