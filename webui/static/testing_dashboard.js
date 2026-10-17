@@ -689,6 +689,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Returns a "not installed" message when the overview says the model or local dataset a run needs is absent,
+    // or null when the run can go ahead. Without overview data nothing is gated (the server reports any error).
+    function missingRunPrereq({ ticker, model_key, timeframe, data_source }) {
+        if (!overviewData) return null;
+        const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        const rawT = String(ticker || 'SPY').trim().toUpperCase();
+        const key = model_key || (tickerMap[rawT] || tickerMap.SPY || {}).model_key;
+        const models = overviewData.registered_model_keys;
+        const datasets = overviewData.datasets;
+        const missing = [];
+        if (Array.isArray(models) && key && !models.includes(key)) {
+            missing.push(`model <code>${esc(key)}</code> not installed (no checkpoint under <code>finetune_csv/finetuned/</code>)`);
+        }
+        const needsLocal = data_source !== 'live' || !overviewData.live_feed;
+        if (datasets && needsLocal && !(datasets[rawT] || []).includes(timeframe)) {
+            missing.push(`dataset for <strong>${esc(rawT)}</strong> (${esc(timeframe)}) not installed under <code>data/</code>`);
+        }
+        return missing.length ? missing.join('; ') : null;
+    }
+
     function populateLabModelSelect(tunedModels) {
         const sel = document.getElementById('lab-model');
         if (!sel || !tunedModels.length) return;
@@ -844,6 +864,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const sampleCount = Number(document.getElementById('lab-samples').value);
         const windowOffset = Number(document.getElementById('lab-window-offset').value);
         const companion = document.getElementById('lab-companion').value;
+
+        const missing = missingRunPrereq({ ticker, model_key: modelKey, timeframe, data_source: dataSource });
+        if (missing) {
+            status.innerHTML = `⚠️ Not run: ${missing}.`;
+            return;
+        }
 
         btn.disabled = true;
         status.textContent = `Running ${modelKey} on ${ticker} (${timeframe}, ${sampleCount} medoid paths, ${normMode})...`;
@@ -1010,10 +1036,24 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = '';
 
         let completed = 0;
+        let skipped = 0;
         let firstResult = null;
 
         for (const setup of SPY_ALL_SETUPS) {
-            status.innerHTML = `🚀 Running SPY Setup <strong>${completed + 1}/${SPY_ALL_SETUPS.length}</strong>: <code>${setup.label}</code>...`;
+            const missing = missingRunPrereq(setup);
+            if (missing) {
+                skipped++;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <th><strong>${setup.label}</strong></th>
+                    <td><code>${setup.model_key}</code></td>
+                    <td>${setup.timeframe}</td>
+                    <td colspan="10"><span class="hub-badge badge-info">NOT INSTALLED</span> ${missing}</td>
+                `;
+                tbody.appendChild(tr);
+                continue;
+            }
+            status.innerHTML = `🚀 Running SPY Setup <strong>${completed + skipped + 1}/${SPY_ALL_SETUPS.length}</strong>: <code>${setup.label}</code>...`;
             try {
                 const res = await apiJson('/api/testing/run-analysis', {
                     method: 'POST',
@@ -1089,7 +1129,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (firstResult) {
             await displayAnalysisResponse(firstResult);
         }
-        status.innerHTML = `✅ Executed all <strong>${completed}/${SPY_ALL_SETUPS.length} SPY Setups</strong> and saved every run to PostgreSQL <code>kronos_research</code>. Click any row's <strong>🔍 View Chart</strong> button to inspect its chart.`;
+        if (skipped === SPY_ALL_SETUPS.length) {
+            status.innerHTML = `⚠️ SPY setup matrix not run: the fine-tuned SPY checkpoints and SPY datasets it needs are not installed on this machine. See each row for what is missing.`;
+            if (allBtn) allBtn.disabled = false;
+            return;
+        }
+        status.innerHTML = skipped
+            ? `✅ Executed <strong>${completed}/${SPY_ALL_SETUPS.length} SPY Setups</strong>; ${skipped} skipped (model/dataset not installed). Click any row's <strong>🔍 View Chart</strong> button to inspect its chart.`
+            : `✅ Executed all <strong>${completed}/${SPY_ALL_SETUPS.length} SPY Setups</strong> and saved every run to PostgreSQL <code>kronos_research</code>. Click any row's <strong>🔍 View Chart</strong> button to inspect its chart.`;
         refreshPostgresHistory();
         if (allBtn) allBtn.disabled = false;
     }
@@ -1245,6 +1292,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const numWindows = Number(document.getElementById('bt-windows').value);
         const horizon = Number(document.getElementById('bt-horizon').value);
         const sampleCount = Number(document.getElementById('bt-samples').value);
+
+        const missing = missingRunPrereq({ ticker, timeframe, data_source: 'local' });
+        if (missing) {
+            status.innerHTML = `⚠️ Walk-forward backtest not run: ${missing}.`;
+            return;
+        }
 
         btn.disabled = true;
         status.textContent = `Running ${numWindows}-window walk-forward evaluation on ${ticker} (${timeframe}, horizon=${horizon} bars, companion=${companion})...`;
