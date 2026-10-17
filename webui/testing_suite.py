@@ -224,6 +224,16 @@ def resolve_local_dataset_csv(ticker: str, timeframe: str = "1hour") -> Optional
     return None
 
 
+def local_dataset_inventory() -> Dict[str, List[str]]:
+    """Maps each mapped ticker to the timeframes that have a local CSV, so the UI can skip runs that would 404."""
+    inventory: Dict[str, List[str]] = {}
+    for ticker in TICKER_TO_MODEL_MAP:
+        tfs = [tf for tf in ("5min", "15min", "1hour", "1day") if resolve_local_dataset_csv(ticker, tf)]
+        if tfs:
+            inventory[ticker] = tfs
+    return inventory
+
+
 def discover_and_register_models(ui_module, db: KronosResearchDB) -> List[Dict[str, Any]]:
     """
     Discovers all fine-tuned checkpoints under `finetune_csv/finetuned/`,
@@ -504,6 +514,9 @@ def register_testing_suite(app, ui_module, live_feed=None) -> KronosResearchDB:
         return jsonify({
             "success": True,
             "tuned_models": discovered_models,
+            "registered_model_keys": sorted(ui_module.AVAILABLE_MODELS),
+            "datasets": local_dataset_inventory(),
+            "live_feed": live_feed is not None,
             "ticker_map": TICKER_TO_MODEL_MAP,
             "factory_status": factory_status,
             "benchmarks": benchmarks,

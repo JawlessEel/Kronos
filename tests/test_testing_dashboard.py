@@ -32,6 +32,27 @@ def test_max_pain_calculation():
     assert mp == 100.0
 
 
+def test_overview_reports_installed_models_and_datasets(monkeypatch, tmp_path):
+    from webui import testing_suite as ts
+
+    monkeypatch.setattr(ts, "FINETUNED_DIR", tmp_path / "finetuned")
+    monkeypatch.setattr(ts, "DATA_DIR", tmp_path / "data")
+    spy_dir = tmp_path / "data" / ts.TICKER_TO_MODEL_MAP["SPY"]["data_subdir"]
+    spy_dir.mkdir(parents=True)
+    spec = ts.TICKER_TO_MODEL_MAP["SPY"]
+    (spy_dir / f"{spec['file_prefix']}_1day_{spec['span_years']}.csv").write_text("timestamps,close\n", encoding="utf-8")
+
+    app = Flask(__name__)
+    register_testing_suite(app, ui, live_feed=None)
+    data = app.test_client().get("/api/testing/overview").get_json()
+
+    assert data["tuned_models"] == []
+    assert "SPY_23yr_multi_tf" not in data["registered_model_keys"]
+    assert set(data["registered_model_keys"]) == set(ui.AVAILABLE_MODELS)
+    assert data["datasets"] == {"SPY": ["1day"]}
+    assert data["live_feed"] is False
+
+
 @pytest.mark.postgres
 def test_postgres_research_db_and_testing_suite_routes(monkeypatch):
     db = KronosResearchDB()
