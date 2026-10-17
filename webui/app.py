@@ -58,9 +58,24 @@ AVAILABLE_MODELS = {
     }
 }
 
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+
+
+def resolve_data_path(file_path):
+    """Return file_path resolved inside the data directory, or None if it points elsewhere."""
+    # abspath (not realpath) so datasets linked into data/ via junctions keep working.
+    data_root = os.path.normcase(os.path.abspath(DATA_DIR))
+    candidate = os.path.abspath(os.path.join(DATA_DIR, file_path))
+    try:
+        inside = os.path.commonpath([data_root, os.path.normcase(candidate)]) == data_root
+    except ValueError:  # different drives on Windows
+        inside = False
+    return candidate if inside else None
+
+
 def load_data_files():
     """Scan data directory and return available data files (including multi-timeframe subdirectories)"""
-    data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+    data_dir = DATA_DIR
     data_files = []
     
     if os.path.exists(data_dir):
@@ -353,11 +368,14 @@ def load_data():
         
         if not file_path:
             return jsonify({'error': 'File path cannot be empty'}), 400
-        
+        file_path = resolve_data_path(file_path)
+        if file_path is None:
+            return jsonify({'error': 'Data files must be inside the project data directory'}), 400
+
         df, error = load_data_file(file_path)
         if error:
             return jsonify({'error': error}), 400
-        
+
         # Detect data time frequency
         def detect_timeframe(df):
             if len(df) < 2:
@@ -427,7 +445,10 @@ def predict():
         
         if not file_path:
             return jsonify({'error': 'File path cannot be empty'}), 400
-        
+        file_path = resolve_data_path(file_path)
+        if file_path is None:
+            return jsonify({'error': 'Data files must be inside the project data directory'}), 400
+
         # Load data
         df, error = load_data_file(file_path)
         if error:
@@ -712,4 +733,5 @@ if __name__ == '__main__':
     else:
         print("Tip: Will use simulated data for demonstration")
     
-    app.run(debug=True, host='0.0.0.0', port=7070)
+    # Project rule: localhost only, debug off. Use scripts/run_webui.py for the full UI.
+    app.run(debug=False, host='127.0.0.1', port=7070)
