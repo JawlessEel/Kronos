@@ -708,8 +708,7 @@ p, .testing-hub-subtitle, .hub-status-banner {
 
 .hub-section-block {
     margin-top: 24px;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 380px;
+    position: relative;
 }
 
 .hub-section-block h3 {
@@ -724,7 +723,6 @@ p, .testing-hub-subtitle, .hub-status-banner {
     overflow: auto;
     max-inline-size: 100%;
     max-block-size: min(460px, 75vh);
-    container-type: inline-size;
     border: 1px solid rgba(0, 245, 212, 0.22);
     border-radius: 12px;
     background: rgba(8, 10, 18, 0.92);

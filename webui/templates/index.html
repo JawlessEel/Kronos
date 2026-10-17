@@ -441,15 +441,19 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=20261012h">
-    <link rel="stylesheet" href="{{ url_for('static', filename='testing_dashboard.css') }}?v=20261012h">
+    <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=20261016b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='testing_dashboard.css') }}?v=20261016b">
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>🚀 Kronos Financial Prediction Web UI</h1>
             <p>AI-based financial K-line data prediction &amp; multi-model options testing platform</p>
-            <div class="pdf-export-toolbar" data-html2canvas-ignore="true"><button id="download-ui-pdf" type="button">Download whole UI as PDF</button><span id="pdf-export-status" role="status"></span></div>
+            <div class="pdf-export-toolbar" data-html2canvas-ignore="true">
+                <a href="/3r-trading-system" id="open-3r-system-page" style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;margin-right:10px;border-radius:8px;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;font-weight:700;text-decoration:none;box-shadow:0 4px 12px rgba(14,165,233,0.35);">⚡ Open 3R Rule Trading System Page →</a>
+                <button id="download-ui-pdf" type="button">Download whole UI as PDF</button>
+                <span id="pdf-export-status" role="status"></span>
+            </div>
             {% if config.SESSION_COOKIE_SECURE %}<form method="post" action="/logout" data-html2canvas-ignore="true"><button type="submit">Sign out</button></form>{% endif %}
         </div>
 
@@ -1258,13 +1262,13 @@
             }
         }
     </script>
-    <script src="{{ url_for('static', filename='chart_math.js') }}?v=20261012h"></script>
-    <script src="{{ url_for('static', filename='prediction_candles.js') }}?v=20261012h"></script>
-    <script src="{{ url_for('static', filename='chart_workbench.js') }}?v=20261012h"></script>
-    <script src="{{ url_for('static', filename='polygon_live.js') }}?v=20261012h"></script>
-    <script src="{{ url_for('static', filename='presets.js') }}?v=20261012h"></script>
-    <script src="{{ url_for('static', filename='ui_pdf_export.js') }}?v=20261012h"></script>
-    <script src="{{ url_for('static', filename='testing_dashboard.js') }}?v=20261012h"></script>
+    <script src="{{ url_for('static', filename='chart_math.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='prediction_candles.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='chart_workbench.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='polygon_live.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='presets.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='ui_pdf_export.js') }}?v=20261016b"></script>
+    <script src="{{ url_for('static', filename='testing_dashboard.js') }}?v=20261016b"></script>
     <nav class="mobile-nav" aria-label="Mobile navigation" data-html2canvas-ignore="true"><a href="#testing-dashboard-hub">Testing Lab</a><a href="#controls">Controls</a><a href="#live-chart">Chart</a><a href="#live-candle-data">Predictions</a></nav>
 </body>
 </html>

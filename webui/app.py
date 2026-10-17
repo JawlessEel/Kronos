@@ -697,6 +697,13 @@ def get_model_status():
             'message': 'Kronos model library not available, please install related dependencies'
         })
 
+try:
+    from webui.pages import register_3r_trading_system as _register_3r_page
+    if "three_r_trading_system" not in app.blueprints:
+        _register_3r_page(app, sys.modules[__name__], live_feed=None)
+except Exception as _3r_err:
+    print(f"Note: 3R Trading System page deferred registration: {_3r_err}")
+
 if __name__ == '__main__':
     print("Starting Kronos Web UI...")
     print(f"Model availability: {MODEL_AVAILABLE}")
