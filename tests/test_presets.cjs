@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const elements={};
-const chartContext=vm.createContext({structuredClone,localStorage:{getItem:()=>null},document:{addEventListener(){}}});
+const chartContext=vm.createContext({structuredClone,localStorage:{getItem:()=>null},window:{addEventListener(){}},document:{addEventListener(){}}});
 vm.runInContext(fs.readFileSync('webui/static/chart_workbench.js','utf8')+'\nthis.workbench=ChartWorkbench;',chartContext);
 const context=vm.createContext({document:{addEventListener(){},getElementById:id=>elements[id]}});
 let applied;

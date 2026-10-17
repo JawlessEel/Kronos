@@ -5,3 +5,4 @@
 2026-10-12 · Antigravity · Audited project & added Wilson CI/RW skill baselines, VIX backtest filter, DB CSV/JSON export, and responsive UI fixes
 2026-10-12 · Antigravity · Added separate /3r-trading-system page and 3R structural analysis, confluence, and sizing engines
 2026-10-16 · Antigravity · Fixed 3R page PDF export clone selector and Options Chain table-over-news PDF layout overlap
+2026-10-17 · Claude · Branch Claudes_upgrades: forecast-first layout with sticky nav/sidebar, pytest/Node check runner + CI, data-dir path guard, localhost-only legacy launchers (docs/CLAUDES_UPGRADES.md)
