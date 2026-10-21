@@ -33,6 +33,52 @@ def test_max_pain_calculation():
     assert mp == 100.0
 
 
+def test_overview_reports_installed_models_and_datasets(monkeypatch, tmp_path):
+    from webui import testing_suite as ts
+    from webui import polygon_feed
+
+    monkeypatch.setattr(ts, "FINETUNED_DIR", tmp_path / "finetuned")
+    monkeypatch.setattr(ts, "DATA_DIR", tmp_path / "data")
+    spy_dir = tmp_path / "data" / ts.TICKER_TO_MODEL_MAP["SPY"]["data_subdir"]
+    spy_dir.mkdir(parents=True)
+    spec = ts.TICKER_TO_MODEL_MAP["SPY"]
+    (spy_dir / f"{spec['file_prefix']}_1day_{spec['span_years']}.csv").write_text("timestamps,close\n", encoding="utf-8")
+    custom_dir = tmp_path / "data" / "custom"
+    custom_dir.mkdir()
+    custom_csv = custom_dir / "AMD_1hour_sample.csv"
+    custom_csv.write_text("timestamps,close\n", encoding="utf-8")
+    (custom_dir / "AMD_1hour_sample_1day.csv").write_text("timestamps,close\n", encoding="utf-8")
+    assert ts.resolve_local_dataset_csv("AMD", "1hour") == custom_csv
+    monkeypatch.setattr(polygon_feed, "settings", lambda: (None, "https://api.polygon.io"))
+
+    app = Flask(__name__)
+    register_testing_suite(app, ui, live_feed=polygon_feed.PolygonFeed())
+    data = app.test_client().get("/api/testing/overview").get_json()
+
+    assert data["tuned_models"] == []
+    assert "SPY_23yr_multi_tf" not in data["registered_model_keys"]
+    assert set(data["registered_model_keys"]) == set(ui.AVAILABLE_MODELS)
+    assert data["datasets"] == {"AMD": ["1hour"], "SPY": ["1day"]}
+    assert data["live_feed"] is False
+
+
+def test_polygon_feed_configuration_requires_a_key(monkeypatch):
+    from webui import polygon_feed
+
+    feed = polygon_feed.PolygonFeed()
+    monkeypatch.setattr(polygon_feed, "settings", lambda: ("configured-key", "https://api.polygon.io"))
+    assert feed.is_configured() is True
+
+    monkeypatch.setattr(polygon_feed, "settings", lambda: (None, "https://api.polygon.io"))
+    assert feed.is_configured() is False
+
+    def invalid_settings():
+        raise FeedError("invalid provider configuration", 503)
+
+    monkeypatch.setattr(polygon_feed, "settings", invalid_settings)
+    assert feed.is_configured() is False
+
+
 @pytest.mark.postgres
 def test_postgres_research_db_and_testing_suite_routes(monkeypatch):
     db = KronosResearchDB()

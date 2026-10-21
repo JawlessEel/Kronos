@@ -187,6 +187,14 @@ class PolygonFeed:
         self.cache = {}
         self.last_attempt = {}
 
+    def is_configured(self):
+        """Whether a supported provider and API key are configured, without exposing the key."""
+        try:
+            key, _ = settings()
+        except FeedError:
+            return False
+        return bool(key)
+
     def candles(self, ticker, interval, count=400):
         ticker, interval = selection(ticker, interval)
         now = pd.Timestamp.now(tz="UTC")
