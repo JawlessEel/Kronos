@@ -443,8 +443,9 @@
     </style>
     <link rel="stylesheet" href="{{ url_for('static', filename='mobile.css') }}?v=20261016b">
     <link rel="stylesheet" href="{{ url_for('static', filename='testing_dashboard.css') }}?v=20261016b">
+    <link rel="stylesheet" href="{{ url_for('static', filename='workspace_layout.css') }}?v=20261017a">
 </head>
-<body>
+<body id="top">
     <div class="container">
         <div class="header">
             <h1>🚀 Kronos Financial Prediction Web UI</h1>
@@ -457,9 +458,17 @@
             {% if config.SESSION_COOKIE_SECURE %}<form method="post" action="/logout" data-html2canvas-ignore="true"><button type="submit">Sign out</button></form>{% endif %}
         </div>
 
-        {% include "testing_dashboard_panel.html" %}
+        <nav class="workspace-nav" aria-label="Page sections" data-html2canvas-ignore="true">
+            <a href="#workspace">Forecast</a>
+            <a href="#controls">Controls</a>
+            <a href="#live-workspace">Live chart</a>
+            <a href="#historical-workspace">Results</a>
+            <a href="#testing-dashboard-hub">Testing Lab</a>
+            <a href="/3r-trading-system">3R System</a>
+            <a href="#top" class="workspace-nav-top" aria-label="Back to top">↑</a>
+        </nav>
 
-        <div class="main-content">
+        <div class="main-content" id="workspace">
             <div class="control-panel" id="controls">
                 {% include "presets.html" %}
                 <h2>🎯 Control Panel</h2>
@@ -653,6 +662,8 @@
                 </div>
             </div>
         </div>
+
+        {% include "testing_dashboard_panel.html" %}
     </div>
 
     <script>
@@ -1269,6 +1280,6 @@
     <script src="{{ url_for('static', filename='presets.js') }}?v=20261016b"></script>
     <script src="{{ url_for('static', filename='ui_pdf_export.js') }}?v=20261016b"></script>
     <script src="{{ url_for('static', filename='testing_dashboard.js') }}?v=20261016b"></script>
-    <nav class="mobile-nav" aria-label="Mobile navigation" data-html2canvas-ignore="true"><a href="#testing-dashboard-hub">Testing Lab</a><a href="#controls">Controls</a><a href="#live-chart">Chart</a><a href="#live-candle-data">Predictions</a></nav>
+    <nav class="mobile-nav" aria-label="Mobile navigation" data-html2canvas-ignore="true"><a href="#controls">Controls</a><a href="#live-chart">Chart</a><a href="#live-candle-data">Predictions</a><a href="#testing-dashboard-hub">Testing Lab</a></nav>
 </body>
 </html>

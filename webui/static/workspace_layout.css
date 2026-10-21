@@ -1,0 +1,71 @@
+/* Forecast workspace layout: sticky section nav + independently scrolling control sidebar.
+   Loaded after testing_dashboard.css so it can reuse the Darkwave --dw-* tokens. */
+:root { --workspace-nav-height: 52px; }
+
+.workspace-nav {
+    position: sticky;
+    top: 0;
+    z-index: 8000;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: var(--workspace-nav-height);
+    margin: 0 0 24px;
+    padding: 8px 12px;
+    background: var(--dw-bg-deep, #0b0d18);
+    border: 1px solid var(--dw-border, rgba(0, 245, 212, 0.22));
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+.workspace-nav a {
+    padding: 8px 14px;
+    border-radius: 8px;
+    color: var(--dw-text-secondary, #94a3b8);
+    font-weight: 600;
+    font-size: 0.92rem;
+    text-decoration: none;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.workspace-nav a:hover,
+.workspace-nav a:focus-visible {
+    color: var(--dw-text-primary, #f1f5f9);
+    background: var(--dw-surface-elevated, rgba(20, 25, 45, 0.92));
+    outline: none;
+}
+.workspace-nav a[href^="/"] { color: var(--dw-cyan, #00f5d4); }
+.workspace-nav .workspace-nav-top { margin-left: auto; }
+
+/* Anchored sections land below the sticky nav instead of underneath it. */
+#workspace, #controls, #live-workspace, #historical-workspace, #testing-dashboard-hub {
+    scroll-margin-top: calc(var(--workspace-nav-height) + 16px);
+}
+
+#testing-dashboard-hub { margin-top: 8px; }
+
+@media (min-width: 769px) {
+    /* The control column is ~3000px tall; keep it beside the charts and scroll it on its own. */
+    .main-content { align-items: start; }
+    .control-panel {
+        position: sticky;
+        top: calc(var(--workspace-nav-height) + 12px);
+        max-height: calc(100vh - var(--workspace-nav-height) - 24px);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: var(--dw-border, rgba(0, 245, 212, 0.22)) transparent;
+    }
+}
+
+@media (max-width: 768px) {
+    /* Phones use the existing bottom .mobile-nav. */
+    .workspace-nav { display: none; }
+    #workspace, #controls, #live-workspace, #historical-workspace, #testing-dashboard-hub { scroll-margin-top: 12px; }
+}
+
+/* PDF export clones the page; print the full control panel rather than its scroll window. */
+.pdf-export-clone .control-panel {
+    position: static !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
