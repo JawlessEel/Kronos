@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 import json
 import math
+import re
 import threading
 import time
 import numpy as np
@@ -225,12 +226,32 @@ def resolve_local_dataset_csv(ticker: str, timeframe: str = "1hour") -> Optional
 
 
 def local_dataset_inventory() -> Dict[str, List[str]]:
-    """Maps each mapped ticker to the timeframes that have a local CSV, so the UI can skip runs that would 404."""
+    """Map mapped and fallback-discovered tickers to timeframes with local CSVs."""
+    timeframes = ("5min", "15min", "1hour", "1day")
     inventory: Dict[str, List[str]] = {}
     for ticker in TICKER_TO_MODEL_MAP:
-        tfs = [tf for tf in ("5min", "15min", "1hour", "1day") if resolve_local_dataset_csv(ticker, tf)]
+        tfs = [tf for tf in timeframes if resolve_local_dataset_csv(ticker, tf)]
         if tfs:
             inventory[ticker] = tfs
+
+    # Arbitrary tickers use resolve_local_dataset_csv's recursive fallback.
+    # Advertise those same local files so the dashboard's preflight gate does
+    # not reject a run the server can actually serve.
+    dataset_name = re.compile(r"(INDEX_[A-Z0-9.-]+|[A-Z][A-Z0-9.-]{0,14})_(5MIN|15MIN|1HOUR|1DAY).*\.CSV")
+    for path in DATA_DIR.rglob("*.csv"):
+        filename = path.name.upper()
+        match = dataset_name.fullmatch(filename)
+        if not match:
+            continue
+        ticker, timeframe = match.groups()
+        timeframe = timeframe.lower()
+        if ticker.startswith("INDEX_"):
+            ticker = f"I:{ticker[len('INDEX_'):]}"
+        available = inventory.setdefault(ticker, [])
+        if timeframe not in available:
+            available.append(timeframe)
+    for available in inventory.values():
+        available.sort(key=timeframes.index)
     return inventory
 
 
@@ -516,7 +537,7 @@ def register_testing_suite(app, ui_module, live_feed=None) -> KronosResearchDB:
             "tuned_models": discovered_models,
             "registered_model_keys": sorted(ui_module.AVAILABLE_MODELS),
             "datasets": local_dataset_inventory(),
-            "live_feed": live_feed is not None,
+            "live_feed": bool(live_feed and live_feed.is_configured()),
             "ticker_map": TICKER_TO_MODEL_MAP,
             "factory_status": factory_status,
             "benchmarks": benchmarks,
