@@ -65,12 +65,34 @@ def _display_ticker(ticker: str) -> str:
     return ticker
 
 
+def aggregate_forecast_paths(paths: list[pd.DataFrame]) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """Mean paths and uncalibrated 10–90% close spread; fix OHLC bounds."""
+    if len(paths) < 2:
+        raise ValueError("At least two model paths are required for sample spread")
+    columns = ["open", "high", "low", "close", "volume", "amount"]
+    index = paths[0].index
+    if any(not p.index.equals(index) or list(p.columns) != columns for p in paths):
+        raise ValueError("Forecast paths must have matching timestamps and columns")
+    values = np.stack([p[columns].to_numpy(dtype=float) for p in paths])
+    if not np.isfinite(values).all() or (values[:, :, :4] <= 0).any():
+        raise ValueError("Forecast paths contain nonfinite or nonpositive prices")
+    center = pd.DataFrame(values.mean(axis=0), columns=columns, index=index)
+    raw_prices = center[["open", "high", "low", "close"]]
+    center["high"] = raw_prices.max(axis=1)
+    center["low"] = raw_prices.min(axis=1)
+    closes = values[:, :, 3]
+    return center, np.quantile(closes, 0.10, axis=0), np.quantile(closes, 0.90, axis=0)
+
+
 def _plot_panel(
     ax: plt.Axes,
     hist_df: pd.DataFrame,
     pred_df: pd.DataFrame,
     ticker: str,
     interval: int,
+    sample_low: np.ndarray,
+    sample_high: np.ndarray,
+    sample_count: int,
     visible_bars: int = 96,
 ) -> dict[str, Any]:
     tf_label = TIMEFRAME_LABELS.get(interval, f"{interval}m")
@@ -102,6 +124,8 @@ def _plot_panel(
     # Shade forecast region
     ax.axvspan(n_hist - 0.5, n_hist + n_pred - 0.5, color="#1f2937", alpha=0.45, zorder=0)
     ax.axvline(n_hist - 0.5, color="#64748b", linestyle="--", linewidth=1.0, zorder=2)
+    ax.fill_between(x_pred, sample_low, sample_high, color="#60a5fa", alpha=0.24,
+                    label=f"Close sample spread 10–90% (n={sample_count})", zorder=1)
 
     # Plot historical candlesticks
     bar_w = 0.62
@@ -161,7 +185,7 @@ def _plot_panel(
 
     ema_bias = "Bullish (63 > 200)" if last_ema63 > last_ema200 else "Bearish (63 < 200)"
     ax.set_title(
-        f"{_display_ticker(ticker)} · {tf_label}  |  Last: {last_close:,.2f} → Pred: {pred_end_close:,.2f} ({delta_sign}{pct_delta:.2f}%)  |  {ema_bias}",
+        f"{_display_ticker(ticker)} · {tf_label}  |  Last: {last_close:,.2f} → Mean: {pred_end_close:,.2f} ({delta_sign}{pct_delta:.2f}%)  |  {ema_bias}",
         color="#e6edf3",
         fontsize=10.5,
         fontweight="bold",
@@ -174,6 +198,8 @@ def _plot_panel(
     tick_step = max(1, len(all_ts) // 6)
     tick_positions = list(range(0, len(all_ts), tick_step))
     if (n_hist - 1) not in tick_positions:
+        # Keep the last actual candle visible without overlapping nearby labels.
+        tick_positions = [p for p in tick_positions if abs(p - (n_hist - 1)) >= max(1, tick_step // 2)]
         tick_positions.append(n_hist - 1)
     tick_positions = sorted(set(tick_positions))
     fmt = "%m-%d" if interval >= 1440 else "%m-%d %H:%M"
@@ -181,6 +207,7 @@ def _plot_panel(
 
     ax.set_xticks(tick_positions)
     ax.set_xticklabels(tick_labels, color="#9ca3af", fontsize=8)
+    ax.set_xlabel("Time (UTC)" if is_crypto(ticker) else "Time (ET)", color="#9ca3af", fontsize=8)
     ax.tick_params(axis="y", colors="#9ca3af", labelsize=8.5)
     for spine in ax.spines.values():
         spine.set_color("#30363d")
@@ -203,6 +230,9 @@ def _plot_panel(
         "ema200": round(last_ema200, 4),
         "ema_cross_state": "above" if last_ema63 > last_ema200 else "below",
         "pred_len": n_pred,
+        "close_sample_p10": round(float(sample_low[-1]), 4),
+        "close_sample_p90": round(float(sample_high[-1]), 4),
+        "sample_count": sample_count,
     }
 
 
@@ -214,6 +244,8 @@ def generate_ticker_forecast(
     out_dir: Path,
     lookback: int,
     slot_label: str,
+    sample_count: int = 5,
+    temperature: float = 1.0,
 ) -> dict[str, Any]:
     fig, axes = plt.subplots(2, 2, figsize=(16, 10), dpi=150)
     fig.patch.set_facecolor("#0d1117")
@@ -225,17 +257,16 @@ def generate_ticker_forecast(
         hist_df, info = feed.candles(ticker, interval, count=lookback)
         model_df = hist_df.tail(lookback)
         future = future_timestamps(hist_df["timestamps"].iloc[-1], interval, pred_len, ticker)
-        pred_df = predictor.predict(
-            df=model_df.drop(columns="timestamps"),
-            x_timestamp=model_df["timestamps"],
-            y_timestamp=future,
-            pred_len=pred_len,
-            T=1.0,
-            top_p=0.9,
-            sample_count=1,
+        paths = predictor.predict_batch(
+            df_list=[model_df.drop(columns="timestamps")] * sample_count,
+            x_timestamp_list=[model_df["timestamps"]] * sample_count,
+            y_timestamp_list=[future] * sample_count,
+            pred_len=pred_len, T=temperature, top_p=0.9, sample_count=1,
             verbose=False,
         )
-        panel_summary = _plot_panel(flat_axes[idx], hist_df, pred_df, ticker, interval)
+        pred_df, sample_low, sample_high = aggregate_forecast_paths(paths)
+        panel_summary = _plot_panel(flat_axes[idx], hist_df, pred_df, ticker, interval,
+                                    sample_low, sample_high, sample_count)
         panel_summary["provider_status"] = info.get("provider_status") or "UNKNOWN"
         summaries.append(panel_summary)
 
@@ -251,7 +282,7 @@ def generate_ticker_forecast(
     fig.text(
         0.5,
         0.012,
-        "Candles: Green/Red = Completed Polygon Bars | Cyan/Purple = Kronos Forecast | Amber = 63 EMA | Pink = 200 EMA | Advisory readout only.",
+        "Candles: Green/Red = Completed Polygon Bars | Cyan/Purple = Mean Forecast | Blue band = Sample close spread (10–90%, not calibrated) | Advisory only.",
         ha="center",
         color="#8b949e",
         fontsize=9,
@@ -277,11 +308,15 @@ def main() -> int:
     parser.add_argument("--tickers", default="SPY,X:BTCUSD", help="Comma-separated tickers")
     parser.add_argument("--intervals", default="5,15,60,1440", help="Comma-separated intervals in minutes")
     parser.add_argument("--lookback", type=int, default=400, help="Historical candle lookback (min 200 for EMA200)")
+    parser.add_argument("--samples", type=int, default=5, help="Independent model paths (2–20)")
+    parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature (0.1–2)")
     parser.add_argument("--slot", default="Scheduled", help="Schedule slot label")
     parser.add_argument("--model-dir", default=str(ROOT / "models" / "Kronos-small"), help="Kronos model path")
     parser.add_argument("--tokenizer-dir", default=str(ROOT / "models" / "Kronos-Tokenizer-base"), help="Kronos tokenizer path")
     parser.add_argument("--out-dir", default=str(ROOT / "outputs" / "discord"), help="Output directory for PNG charts")
     args = parser.parse_args()
+    if not 2 <= args.samples <= 20 or not np.isfinite(args.temperature) or not 0.1 <= args.temperature <= 2:
+        parser.error("samples must be 2–20 and temperature must be 0.1–2")
 
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
     intervals = [int(x.strip()) for x in args.intervals.split(",") if x.strip()]
@@ -301,6 +336,8 @@ def main() -> int:
                 out_dir=out_dir,
                 lookback=max(args.lookback, 250),
                 slot_label=args.slot,
+                sample_count=args.samples,
+                temperature=args.temperature,
             )
         )
 
@@ -309,6 +346,8 @@ def main() -> int:
         "generated_at": pd.Timestamp.now(tz="UTC").isoformat(),
         "device": device,
         "model": Path(args.model_dir).name,
+        "sample_count": args.samples,
+        "temperature": args.temperature,
         "slot": args.slot,
         "results": results,
     }
