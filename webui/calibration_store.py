@@ -79,7 +79,7 @@ def artifact_signature(model_dir: Path, tokenizer_dir: Path) -> str:
 
 def series_key(ticker: str, interval: int, lookback: int, samples: int, model: str,
                tokenizer: str = "Kronos-Tokenizer-base", signature: str = "unverified") -> str:
-    return f'{ticker}|{interval}|{lookback}|{samples}|{model}|{tokenizer}|{signature}' 
+    return f'{ticker}|{interval}|{lookback}|{samples}|{model}|{tokenizer}|{signature}'
 
 
 def future_availability(future: pd.Series, ticker: str, interval: int) -> list[str]:
