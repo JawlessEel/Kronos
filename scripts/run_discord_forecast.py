@@ -26,6 +26,9 @@ if str(ROOT) not in sys.path:
 from model import Kronos, KronosPredictor, KronosTokenizer  # noqa: E402
 from webui.polygon_feed import PolygonFeed, future_timestamps, is_crypto  # noqa: E402
 
+EMA63_COLOR = "#ec4899"
+EMA200_COLOR = "#ff9800"
+
 TIMEFRAME_LABELS: dict[int, str] = {
     5: "5m",
     15: "15m",
@@ -155,14 +158,14 @@ def _plot_panel(
     # Plot 63 EMA and 200 EMA
     last_ema63 = float(hist_tail["ema63"].iloc[-1])
     last_ema200 = float(hist_tail["ema200"].iloc[-1])
-    ax.plot(x_hist, hist_tail["ema63"], color="#f59e0b", linewidth=1.6, label=f"63 EMA ({last_ema63:,.2f})", zorder=5)
-    ax.plot(x_hist, hist_tail["ema200"], color="#ec4899", linewidth=1.6, label=f"200 EMA ({last_ema200:,.2f})", zorder=5)
+    ax.plot(x_hist, hist_tail["ema63"], color=EMA63_COLOR, linewidth=1.6, label=f"63 EMA ({last_ema63:,.2f})", zorder=5)
+    ax.plot(x_hist, hist_tail["ema200"], color=EMA200_COLOR, linewidth=1.6, label=f"200 EMA ({last_ema200:,.2f})", zorder=5)
 
     # Dashed continuation of EMAs across forecast window
     ax.plot(
         np.concatenate([[x_hist[-1]], x_pred]),
         np.concatenate([[last_ema63], pred_ema63.to_numpy()]),
-        color="#f59e0b",
+        color=EMA63_COLOR,
         linewidth=1.2,
         linestyle=":",
         alpha=0.85,
@@ -171,7 +174,7 @@ def _plot_panel(
     ax.plot(
         np.concatenate([[x_hist[-1]], x_pred]),
         np.concatenate([[last_ema200], pred_ema200.to_numpy()]),
-        color="#ec4899",
+        color=EMA200_COLOR,
         linewidth=1.2,
         linestyle=":",
         alpha=0.85,

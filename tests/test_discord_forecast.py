@@ -43,6 +43,11 @@ class ForecastPathsTests(unittest.TestCase):
             ticks = ax.get_xticks()
             self.assertGreaterEqual(min(np.diff(ticks)), 10)
             self.assertEqual(ax.get_xlabel(), "Time (ET)")
+            labeled = {line.get_label(): line.get_color() for line in ax.lines}
+            self.assertEqual(next(v for k,v in labeled.items() if k.startswith("63 EMA")), "#ec4899")
+            self.assertEqual(next(v for k,v in labeled.items() if k.startswith("200 EMA")), "#ff9800")
+            self.assertEqual(ax.lines[-2].get_color(), "#ec4899")
+            self.assertEqual(ax.lines[-1].get_color(), "#ff9800")
         finally:
             plt.close(fig)
 
