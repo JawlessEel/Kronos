@@ -3,7 +3,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from scripts.run_discord_forecast import aggregate_forecast_paths, _plot_panel
+from scripts.run_discord_forecast import aggregate_forecast_paths, generate_ticker_forecast, _plot_panel
 from scripts.benchmark_discord_forecasts import origins, score
 
 
@@ -58,6 +58,42 @@ class ForecastPathsTests(unittest.TestCase):
             aggregate_forecast_paths([self.path(100), self.path(100).rename(index=lambda x: x + pd.Timedelta(days=1))])
         with self.assertRaises(ValueError):
             aggregate_forecast_paths([self.path(100)])
+
+
+class ForecastIntegrationTests(unittest.TestCase):
+    def test_calibrated_forecast_uses_only_past_and_records_raw_paths(self):
+        import tempfile
+        from pathlib import Path
+        from webui.calibration_store import series_key
+        now=pd.Timestamp.now(tz="UTC").floor("5min")
+        bars=pd.DataFrame({"timestamps":pd.date_range(end=now-pd.Timedelta(minutes=5),periods=400,freq="5min"),
+                           "open":100.,"high":102.,"low":99.,"close":100.,"volume":1.,"amount":100.})
+        class Feed:
+            def candles(self,ticker,interval,count): return bars.copy(),{"provider_status":"OK"}
+        class Predictor:
+            def predict_batch(self,**kw):
+                return [pd.DataFrame({"open":109.,"high":108.,"low":111.,"close":110.,"volume":1.,"amount":100.},index=kw["y_timestamp_list"][0]) for _ in range(5)]
+        history=[]
+        for i in range(20):
+            decision=now-pd.Timedelta(days=25-i)
+            history.append({"decision":decision.isoformat(),"asof":decision.isoformat(),"start":100.,
+                            "future":[],"available":[(decision+pd.Timedelta(minutes=5*(j+1))).isoformat() for j in range(24)],
+                            "actual":[99.]*24,"temperature_paths":{"1.0":[[110.]*24 for _ in range(5)]}})
+        key=series_key("X:BTCUSD",5,400,5,"Kronos-small")
+        state={"version":1,"series":{key:history}}
+        with tempfile.TemporaryDirectory() as tmp:
+            result=generate_ticker_forecast(Feed(),Predictor(),"X:BTCUSD",[5],Path(tmp),400,"test",sample_count=5,temperature=1.0,model_weight=.25,calibration_state=state)
+            tf=result["timeframes"][0]
+            self.assertTrue(Path(result["chart_path"]).is_file())
+            self.assertEqual(tf["uncertainty_method"],"empirical")
+            self.assertEqual(tf["model_weight"],.25)
+            self.assertEqual(tf["pred_end_close"],102.5)
+            self.assertLess(tf["forecast_band_lower"],tf["pred_end_close"])
+            self.assertGreater(tf["forecast_band_upper"],tf["pred_end_close"])
+            self.assertEqual(len(history),21)
+            self.assertEqual(history[-1]["temperature_paths"]["1.0"][0][-1],110.0)
+            self.assertIsNone(history[-1]["actual"][-1])
+
 
 
 class WalkForwardTests(unittest.TestCase):

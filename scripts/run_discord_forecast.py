@@ -25,6 +25,9 @@ if str(ROOT) not in sys.path:
 
 from model import Kronos, KronosPredictor, KronosTokenizer  # noqa: E402
 from webui.polygon_feed import PolygonFeed, future_timestamps, is_crypto  # noqa: E402
+from webui.forecast_calibration import adjust_forecast, calibrate_forecast  # noqa: E402
+from webui.calibration_store import (append_forecast, artifact_signature, future_availability, load_calibration,
+                                     save_calibration, series_key, update_actuals)  # noqa: E402
 
 EMA63_COLOR = "#ec4899"
 EMA200_COLOR = "#ff9800"
@@ -97,6 +100,11 @@ def _plot_panel(
     sample_high: np.ndarray,
     sample_count: int,
     visible_bars: int = 96,
+    *,
+    forecast_low: np.ndarray | None = None,
+    forecast_high: np.ndarray | None = None,
+    calibration: dict[str, Any] | None = None,
+    model_weight: float = 1.0,
 ) -> dict[str, Any]:
     tf_label = TIMEFRAME_LABELS.get(interval, f"{interval}m")
 
@@ -127,8 +135,13 @@ def _plot_panel(
     # Shade forecast region
     ax.axvspan(n_hist - 0.5, n_hist + n_pred - 0.5, color="#1f2937", alpha=0.45, zorder=0)
     ax.axvline(n_hist - 0.5, color="#64748b", linestyle="--", linewidth=1.0, zorder=2)
-    ax.fill_between(x_pred, sample_low, sample_high, color="#60a5fa", alpha=0.24,
-                    label=f"Close sample spread 10–90% (n={sample_count})", zorder=1)
+    empirical = bool(calibration and calibration.get("ready"))
+    band_low = sample_low if forecast_low is None else forecast_low
+    band_high = sample_high if forecast_high is None else forecast_high
+    band_label = (f"Historical residual band, 80% target (n={calibration['endpoint_count']})"
+                  if empirical else f"Close sample spread 10–90% (n={sample_count})")
+    ax.fill_between(x_pred, band_low, band_high, color="#60a5fa", alpha=0.24,
+                    label=band_label, zorder=1)
 
     # Plot historical candlesticks
     bar_w = 0.62
@@ -188,7 +201,7 @@ def _plot_panel(
 
     ema_bias = "Bullish (63 > 200)" if last_ema63 > last_ema200 else "Bearish (63 < 200)"
     ax.set_title(
-        f"{_display_ticker(ticker)} · {tf_label}  |  Last: {last_close:,.2f} → Mean: {pred_end_close:,.2f} ({delta_sign}{pct_delta:.2f}%)  |  {ema_bias}",
+        f"{_display_ticker(ticker)} · {tf_label}  |  Last: {last_close:,.2f} → {'Blend' if model_weight < 1 else 'Mean'}: {pred_end_close:,.2f} ({delta_sign}{pct_delta:.2f}%)  |  {ema_bias}",
         color="#e6edf3",
         fontsize=10.5,
         fontweight="bold",
@@ -236,6 +249,12 @@ def _plot_panel(
         "close_sample_p10": round(float(sample_low[-1]), 4),
         "close_sample_p90": round(float(sample_high[-1]), 4),
         "sample_count": sample_count,
+        "forecast_band_lower": round(float(band_low[-1]), 4),
+        "forecast_band_upper": round(float(band_high[-1]), 4),
+        "uncertainty_method": "empirical" if empirical else "sample",
+        "calibration_count": int(calibration.get("endpoint_count", 0)) if calibration else 0,
+        "calibration_through": calibration.get("through") if empirical else None,
+        "model_weight": model_weight,
     }
 
 
@@ -249,6 +268,11 @@ def generate_ticker_forecast(
     slot_label: str,
     sample_count: int = 5,
     temperature: float = 1.0,
+    model_weight: float = 0.25,
+    calibration_state: dict[str, Any] | None = None,
+    model_name: str = "Kronos-small",
+    tokenizer_name: str = "Kronos-Tokenizer-base",
+    model_signature: str = "unverified",
 ) -> dict[str, Any]:
     fig, axes = plt.subplots(2, 2, figsize=(16, 10), dpi=150)
     fig.patch.set_facecolor("#0d1117")
@@ -257,8 +281,20 @@ def generate_ticker_forecast(
     summaries: list[dict[str, Any]] = []
     for idx, interval in enumerate(intervals[:4]):
         pred_len = DEFAULT_PRED_LEN.get(interval, 24)
-        hist_df, info = feed.candles(ticker, interval, count=lookback)
-        model_df = hist_df.tail(lookback)
+        fetch_count = lookback
+        if calibration_state is not None and is_crypto(ticker):
+            fetch_count = max(lookback, 2000 if interval == 5 else 800 if interval == 15 else lookback)
+        all_history, info = feed.candles(ticker, interval, count=fetch_count)
+        model_df = all_history.tail(lookback).reset_index(drop=True)
+        hist_df = model_df
+        decision = pd.Timestamp.now(tz="UTC")
+        records = None
+        fit = {"ready": False, "endpoint_count": 0}
+        if calibration_state is not None:
+            key = series_key(ticker, interval, lookback, sample_count, model_name, tokenizer_name, model_signature)
+            records = calibration_state["series"].setdefault(key, [])
+            update_actuals(records, all_history)
+            fit = calibrate_forecast(records, decision, temperature, pred_len, fixed_weight=model_weight)
         future = future_timestamps(hist_df["timestamps"].iloc[-1], interval, pred_len, ticker)
         paths = predictor.predict_batch(
             df_list=[model_df.drop(columns="timestamps")] * sample_count,
@@ -270,8 +306,20 @@ def generate_ticker_forecast(
         if len(paths) != sample_count:
             raise RuntimeError("Model returned an incomplete forecast-path batch")
         pred_df, sample_low, sample_high = aggregate_forecast_paths(paths)
+        pred_df, band_low, band_high, effective_weight, method = adjust_forecast(
+            pred_df, sample_low, sample_high, float(model_df.close.iloc[-1]), fit)
+        if method == "empirical":
+            sample_low = float(model_df.close.iloc[-1]) + effective_weight * (sample_low - float(model_df.close.iloc[-1]))
+            sample_high = float(model_df.close.iloc[-1]) + effective_weight * (sample_high - float(model_df.close.iloc[-1]))
         panel_summary = _plot_panel(flat_axes[idx], hist_df, pred_df, ticker, interval,
-                                    sample_low, sample_high, sample_count)
+                                    sample_low, sample_high, sample_count, forecast_low=band_low,
+                                    forecast_high=band_high, calibration=fit, model_weight=effective_weight)
+        if records is not None:
+            record = {"decision": decision.isoformat(), "asof": model_df.timestamps.iloc[-1].isoformat(),
+                      "start": float(model_df.close.iloc[-1]), "future": [pd.Timestamp(t).isoformat() for t in future],
+                      "available": future_availability(future, ticker, interval), "actual": [None] * pred_len,
+                      "temperature_paths": {str(float(temperature)): [p.close.astype(float).tolist() for p in paths]}}
+            append_forecast(records, record)
         panel_summary["provider_status"] = info.get("provider_status") or "UNKNOWN"
         summaries.append(panel_summary)
 
@@ -287,7 +335,7 @@ def generate_ticker_forecast(
     fig.text(
         0.5,
         0.012,
-        "Candles: Green/Red = Completed Polygon Bars | Cyan/Purple = Mean Forecast | Blue band = Sample close spread (10–90%, not calibrated) | Advisory only.",
+        "Candles: Green/Red = Completed Polygon Bars | Cyan/Purple = Forecast | Blue band = sample spread or historical residual range (see legend; coverage not guaranteed).",
         ha="center",
         color="#8b949e",
         fontsize=9,
@@ -315,13 +363,17 @@ def main() -> int:
     parser.add_argument("--lookback", type=int, default=400, help="Historical candle lookback (min 200 for EMA200)")
     parser.add_argument("--samples", type=int, default=5, help="Independent model paths (2–20)")
     parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature (0.1–2)")
+    parser.add_argument("--model-weight", type=float, default=0.25, help="Model weight in blend with last close (0–1; applied when calibration is ready)")
+    parser.add_argument("--calibration-state", type=Path, default=None, help="Optional local outcome-history state file")
     parser.add_argument("--slot", default="Scheduled", help="Schedule slot label")
     parser.add_argument("--model-dir", default=str(ROOT / "models" / "Kronos-small"), help="Kronos model path")
     parser.add_argument("--tokenizer-dir", default=str(ROOT / "models" / "Kronos-Tokenizer-base"), help="Kronos tokenizer path")
     parser.add_argument("--out-dir", default=str(ROOT / "outputs" / "discord"), help="Output directory for PNG charts")
     args = parser.parse_args()
-    if not 2 <= args.samples <= 20 or not np.isfinite(args.temperature) or not 0.1 <= args.temperature <= 2:
-        parser.error("samples must be 2–20 and temperature must be 0.1–2")
+    if not 2 <= args.samples <= 20 or not np.isfinite(args.temperature) or not 0.1 <= args.temperature <= 2 or not np.isfinite(args.model_weight) or not 0 <= args.model_weight <= 1:
+        parser.error("samples must be 2–20, temperature 0.1–2 and model weight 0–1")
+    calibration_state = load_calibration(args.calibration_state) if args.calibration_state else None
+    model_signature = artifact_signature(Path(args.model_dir), Path(args.tokenizer_dir)) if calibration_state is not None else "unverified"
 
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
     intervals = [int(x.strip()) for x in args.intervals.split(",") if x.strip()]
@@ -343,8 +395,16 @@ def main() -> int:
                 slot_label=args.slot,
                 sample_count=args.samples,
                 temperature=args.temperature,
+                model_weight=args.model_weight,
+                calibration_state=calibration_state,
+                model_name=Path(args.model_dir).name,
+                tokenizer_name=Path(args.tokenizer_dir).name,
+                model_signature=model_signature,
             )
         )
+
+    if args.calibration_state and calibration_state is not None:
+        save_calibration(args.calibration_state, calibration_state)
 
     payload = {
         "success": True,
@@ -353,6 +413,7 @@ def main() -> int:
         "model": Path(args.model_dir).name,
         "sample_count": args.samples,
         "temperature": args.temperature,
+        "configured_model_weight": args.model_weight,
         "slot": args.slot,
         "results": results,
     }
