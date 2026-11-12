@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.run_discord_forecast import DEFAULT_PRED_LEN, _load_predictor  # noqa: E402
 from webui.polygon_feed import CALENDAR, FeedError, future_timestamps, is_crypto, normalize_bars, provider_interval, settings  # noqa: E402
 from webui.calibration_store import artifact_signature  # noqa: E402
+from webui.btc_daily_research import daily_volatility  # noqa: E402
 
 ET = 'America/New_York'
 TEMPERATURES = (1.0, 0.9, 0.8)
@@ -37,6 +38,7 @@ def market_slots(now: pd.Timestamp, sessions: int, maturity_sessions: int = 12):
     """One date-spread real slot per NYSE session, balanced over configured times."""
     now = pd.Timestamp(now).tz_convert('UTC')
     schedule = CALENDAR.schedule(start_date=(now - pd.Timedelta(days=365)).date(), end_date=now.date())
+    schedule = schedule.loc[schedule.market_open <= now]
     eligible = schedule.iloc[-(sessions + maturity_sessions):-maturity_sessions]
     slots = []
     for i, (day, row) in enumerate(eligible.iterrows()):
@@ -150,10 +152,12 @@ def run():
     parser.add_argument('--interval',type=int,choices=(5,15,60,1440),default=None)
     parser.add_argument('--resume',action='store_true',help='Replace selected groups in an existing compatible report')
     args = parser.parse_args()
-    if not 12 <= args.sessions <= 120 or not 2 <= args.samples <= 20 or args.batch_origins < 1:
-        parser.error('sessions must be 12–120, samples 2–20, batch origins positive')
+    if not 12 <= args.sessions <= 180 or not 2 <= args.samples <= 20 or args.batch_origins < 1:
+        parser.error('sessions must be 12–180, samples 2–20, batch origins positive')
     path = Path(args.output); path.parent.mkdir(parents=True,exist_ok=True)
     slots = market_slots(pd.Timestamp.now(tz='UTC'),args.sessions)
+    if len(slots) != args.sessions:
+        parser.error('Insufficient past exchange sessions for requested evaluation')
     print(f'Selected {len(slots)} real exchange-session slots, one per day, balanced across 09:30/12:00/15:00 ET',flush=True)
     model,device = _load_predictor(ROOT/'models/Kronos-small',ROOT/'models/Kronos-Tokenizer-base')
     signature=artifact_signature(ROOT/'models/Kronos-small',ROOT/'models/Kronos-Tokenizer-base')
@@ -171,8 +175,18 @@ def run():
         report = {'method':{'sessions':args.sessions,'actual_posting_times_et':list(DEFAULT_TIMES), 'origins_per_session':1,
                             'maturity_holdback_sessions':12,'lookback':400,'samples':args.samples,
                             'temperatures':list(TEMPERATURES),'top_p':0.9,'device':device,'artifact_signature':signature},'results':[]}
-    counts = {('SPY',5):5000,('SPY',15):2500,('SPY',60):1300,('SPY',1440):700,
-              ('X:BTCUSD',5):22000,('X:BTCUSD',15):8000,('X:BTCUSD',60):2500,('X:BTCUSD',1440):900}
+    # Long requested tests need enough prior bars as well as the reserved
+    # maturity period; crypto trades continuously across weekends and holidays.
+    span_days = max(1, int((pd.Timestamp.now(tz='UTC') - slots[0]).total_seconds() // 86400) + 8)
+    trading_sessions = args.sessions + 12
+    counts = {('SPY',5):max(5000,trading_sessions*78+424),
+              ('SPY',15):max(2500,trading_sessions*26+424),
+              ('SPY',60):max(1300,trading_sessions*7+418),
+              ('SPY',1440):max(700,trading_sessions+420),
+              ('X:BTCUSD',5):max(22000,span_days*288+424),
+              ('X:BTCUSD',15):max(8000,span_days*96+424),
+              ('X:BTCUSD',60):max(2500,span_days*24+418),
+              ('X:BTCUSD',1440):max(900,span_days+410)}
     for interval in ((args.interval,) if args.interval else (5,15,60,1440)):
         for ticker in ((args.ticker,) if args.ticker else ('SPY','X:BTCUSD')):
             if args.resume:
@@ -199,6 +213,7 @@ def run():
                     for k,w in enumerate(group):
                         entry={'decision':w['decision'].isoformat(),'asof':w['hist'].timestamps.iloc[-1].isoformat(),
                                'start':float(w['hist'].close.iloc[-1]),
+                               'daily_volatility_30':daily_volatility(w['hist'].close) if ticker=='X:BTCUSD' and interval==1440 else None,
                                'actual':[float(x) for x in w['actual'].close],
                                'future':[pd.Timestamp(x).isoformat() for x in w['future']],
                                'available':[pd.Timestamp(x).isoformat() for x in w['available']], 'temperature_paths':{}}

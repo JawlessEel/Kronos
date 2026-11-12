@@ -18,6 +18,13 @@ class ScheduledWindowsTests(unittest.TestCase):
         self.assertTrue(all(t.strftime('%H:%M') in {'09:30','12:00','15:00'} for t in local))
         self.assertTrue(any(t.strftime('%H:%M')=='15:00' for t in local))
 
+    def test_future_exchange_session_is_never_selected(self):
+        now=pd.Timestamp("2026-11-12T02:00:00Z")  # evening Nov 11 in New York
+        slots=market_slots(now,8,maturity_sessions=1)
+        self.assertEqual(len(slots),8)
+        self.assertTrue(all(slot < now for slot in slots))
+        self.assertLess(slots[-1].date(),now.date())
+
     def test_crypto_uses_only_bars_completed_by_decision(self):
         bars=pd.DataFrame({'timestamps':pd.date_range('2026-10-31',periods=1300,freq='5min',tz='UTC'),
                            'close':np.arange(1300)+100.0})
