@@ -264,6 +264,8 @@ def generate_ticker_forecast(
             pred_len=pred_len, T=temperature, top_p=0.9, sample_count=1,
             verbose=False,
         )
+        if len(paths) != sample_count:
+            raise RuntimeError("Model returned an incomplete forecast-path batch")
         pred_df, sample_low, sample_high = aggregate_forecast_paths(paths)
         panel_summary = _plot_panel(flat_axes[idx], hist_df, pred_df, ticker, interval,
                                     sample_low, sample_high, sample_count)
