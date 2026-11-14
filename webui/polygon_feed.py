@@ -27,11 +27,11 @@ def is_crypto(ticker):
     return ticker.startswith('X:')
 
 
-def provider_interval(ticker, interval):
+def provider_interval(ticker, interval, equity_session='regular'):
     if interval == 1440:
         return 1, 'day'
     if interval >= 60:
-        return (interval // 60, 'hour') if is_crypto(ticker) else (30, 'minute')
+        return (interval // 60, 'hour') if is_crypto(ticker) or equity_session == 'all' else (30, 'minute')
     return interval, 'minute'
 
 
@@ -63,7 +63,7 @@ def selection(ticker, interval):
     return ticker, interval
 
 
-def normalize_bars(results, interval, now, count=400, ticker='SPY'):
+def normalize_bars(results, interval, now, count=400, ticker='SPY', equity_session='regular'):
     """Keep completed market-specific bars without inventing missing candles."""
     if not results:
         raise FeedError("No candles returned. Check the symbol and your data subscription.", 422)
@@ -86,15 +86,26 @@ def normalize_bars(results, interval, now, count=400, ticker='SPY'):
         raise FeedError("Provider returned malformed candle data; no forecast was generated.", 502) from None
     df = df.sort_values("timestamps").drop_duplicates("timestamps", keep="last")
     crypto = is_crypto(ticker)
+    if equity_session not in ('regular', 'all'):
+        raise FeedError('Choose regular or all available equity-session candles.')
     if crypto or interval == 1440:
         if crypto:
             completed = df['timestamps'] + pd.Timedelta(minutes=interval) <= now
         else:
-            # Provider stock daily bars span the ET calendar date, including
-            # eligible extended-hours trades. Wait until that day is finished.
+            # Preserve the provider-native daily aggregation and wait until
+            # that ET date is finished; intraday session rules are separate.
             local = df['timestamps'].dt.tz_convert(TZ)
             completed = (local + pd.DateOffset(days=1)).dt.tz_convert('UTC') <= now
         df = df.loc[completed]
+    elif equity_session == 'all':
+        # Keep real provider pre/post-market bars rather than constructing a
+        # continuous series or filling non-traded intervals. The provider's
+        # hourly bars are clock-aligned, unlike RTH's 09:30-anchored bars.
+        completed = df.timestamps + pd.Timedelta(minutes=interval) <= now
+        local_dates = df.timestamps.dt.tz_convert(TZ).dt.date
+        session_dates = CALENDAR.schedule(start_date=local_dates.min(),
+                                          end_date=local_dates.max()).index.date
+        df = df.loc[completed & local_dates.isin(session_dates)]
     else:
         df = regular_bars(df, interval, now)
     df = df.loc[:, ["timestamps", "open", "high", "low", "close", "volume", "amount"]].tail(count).reset_index(drop=True)
@@ -130,17 +141,27 @@ def regular_bars(df, interval, now):
     return pd.DataFrame(rows, columns=df.columns)
 
 
-def future_timestamps(last, interval, count, ticker='SPY'):
+def future_timestamps(last, interval, count, ticker='SPY', equity_session='regular'):
     """Use NYSE holidays, early closes and DST for the forecast calendar."""
     last = pd.Timestamp(last).tz_convert("UTC")
     if is_crypto(ticker):
         return pd.Series(pd.date_range(last + pd.Timedelta(minutes=interval), periods=count, freq=f'{interval}min'), name='timestamps')
-    schedule = CALENDAR.schedule(start_date=last.date(), end_date=last.date() + timedelta(days=max(365, count * 2)))
+    local_date = last.tz_convert(TZ).date()
+    schedule = CALENDAR.schedule(start_date=local_date, end_date=local_date + timedelta(days=max(365, count * 2)))
     times = []
     step = pd.Timedelta(minutes=interval)
     for session in schedule.itertuples():
         if interval == 1440:
             candidates = pd.DatetimeIndex([session.market_open.tz_convert(TZ).normalize().tz_convert('UTC')])
+        elif equity_session == 'all':
+            # Massive's documented stock coverage is 04:00-20:00 ET; NYSE
+            # early-close late sessions finish at 17:00. Do not invent 24/7
+            # equity targets, holidays, or weekend candles.
+            local_open = session.market_open.tz_convert(TZ)
+            start = local_open.normalize() + pd.Timedelta(hours=4)
+            end_hour = 17 if session.market_close.tz_convert(TZ).hour < 16 else 20
+            finish = local_open.normalize() + pd.Timedelta(hours=end_hour)
+            candidates = pd.date_range(start, finish - step, freq=step).tz_convert('UTC')
         elif interval >= 60:
             candidates = pd.date_range(session.market_open, session.market_close, freq=step, inclusive='left')
         else:
@@ -151,7 +172,7 @@ def future_timestamps(last, interval, count, ticker='SPY'):
     raise FeedError("Could not construct the future exchange calendar.", 422)
 
 
-def metadata(df, ticker, interval, now, provider_status, fetched_at):
+def metadata(df, ticker, interval, now, provider_status, fetched_at, equity_session='regular'):
     today = now.tz_convert(TZ).date()
     schedule = CALENDAR.schedule(start_date=today, end_date=today)
     opened = bool(len(schedule) and schedule.iloc[0].market_open <= now < schedule.iloc[0].market_close)
@@ -162,7 +183,11 @@ def metadata(df, ticker, interval, now, provider_status, fetched_at):
             "last_candle_age_seconds": round((now - last.tz_convert("UTC")).total_seconds()),
             "fetched_at": fetched_at.isoformat(), "market_open": True if crypto else opened,
             "market": 'crypto' if crypto else 'stocks', "timezone": 'UTC' if crypto else TZ,
-            "session": 'Crypto 24/7; completed UTC candles' if crypto else 'Provider daily stock bars; completed ET days; eligible extended-hours trades included' if interval == 1440 else 'US regular session only; completed candles; split-adjusted; final hourly bar may be shorter',
+            "session": 'Crypto 24/7; completed UTC candles' if crypto else 'Provider daily stock bars; completed ET days; provider daily aggregation rules' if interval == 1440 else 'All available provider stock sessions; completed candles; split-adjusted; no missing-bar fills; provider coverage is not 24-hour stock coverage' if equity_session == 'all' else 'US regular session only; completed candles; split-adjusted; final hourly bar may be shorter',
+            "data_session": 'crypto_24_7' if crypto else 'equity_daily_provider' if interval == 1440 else 'equity_all' if equity_session == 'all' else 'equity_regular',
+            "observed_hours": sorted(set(df.timestamps.dt.strftime('%H').tolist())),
+            "history_start_at": df.timestamps.iloc[0].isoformat(),
+            "provider": "Polygon/Massive REST aggregates",
             "provider_status": provider_status,
             "delay_notice": "Provider reports delayed data." if provider_status == "DELAYED" else "Recency depends on your Polygon subscription; an OK response does not certify real-time access.",
             }
@@ -195,23 +220,25 @@ class PolygonFeed:
             return False
         return bool(key)
 
-    def candles(self, ticker, interval, count=400):
+    def candles(self, ticker, interval, count=400, *, equity_session='regular'):
         ticker, interval = selection(ticker, interval)
         now = pd.Timestamp.now(tz="UTC")
         count = history_length(count)
-        cache_key = (ticker, interval, count)
+        if equity_session not in ('regular', 'all'):
+            raise FeedError('Choose regular or all available equity-session candles.')
+        cache_key = (ticker, interval, count, equity_session)
         with self.lock:
             cached = self.cache.get(cache_key)
             if cached and time.monotonic() - cached[3] < 60:
                 df, status, fetched, _ = cached
-                return df.copy(), metadata(df, ticker, interval, now, status, fetched)
+                return df.copy(), metadata(df, ticker, interval, now, status, fetched, equity_session)
             if time.monotonic() - self.last_attempt.get(cache_key, -1e9) < 60:
                 raise FeedError("Wait 60 seconds before retrying this feed.", 429)
             key, base = settings()
             if not key:
                 raise FeedError("Polygon key is missing from the server's private .env file.", 503)
             self.last_attempt[cache_key] = time.monotonic()
-            multiplier, timespan = provider_interval(ticker, interval)
+            multiplier, timespan = provider_interval(ticker, interval, equity_session)
             days = min(365 * 30, max(365, count * (2 if interval == 1440 else 1 if interval == 240 else 0.25)))
             url = f"{base}/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{(now - pd.Timedelta(days=days)).date()}/{now.date()}"
             try:
@@ -239,7 +266,7 @@ class PolygonFeed:
             from urllib.parse import urlsplit, parse_qsl
             for _ in range(12):
                 try:
-                    df = normalize_bars(all_rows, interval, now, count, ticker)
+                    df = normalize_bars(all_rows, interval, now, count, ticker, equity_session)
                     break
                 except FeedError as error:
                     if error.status != 422 or not payload.get("next_url"):
@@ -266,7 +293,7 @@ class PolygonFeed:
                 self.cache.clear()
                 self.last_attempt = {cache_key: self.last_attempt[cache_key]}
             self.cache[cache_key] = (df, status, now, time.monotonic())
-            return df.copy(), metadata(df, ticker, interval, now, status, now)
+            return df.copy(), metadata(df, ticker, interval, now, status, now, equity_session)
 
 
 def register_live_feed(app, ui):

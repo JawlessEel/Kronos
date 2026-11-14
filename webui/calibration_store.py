@@ -82,7 +82,8 @@ def series_key(ticker: str, interval: int, lookback: int, samples: int, model: s
     return f'{ticker}|{interval}|{lookback}|{samples}|{model}|{tokenizer}|{signature}'
 
 
-def future_availability(future: pd.Series, ticker: str, interval: int) -> list[str]:
+def future_availability(future: pd.Series, ticker: str, interval: int,
+                        equity_session: str = 'regular') -> list[str]:
     """Actual close availability for completed bars in the live feed."""
     from webui.polygon_feed import CALENDAR, is_crypto
     stamps=pd.Series(future).reset_index(drop=True)
@@ -90,7 +91,7 @@ def future_availability(future: pd.Series, ticker: str, interval: int) -> list[s
         times=(stamps.dt.tz_convert('America/New_York')+pd.DateOffset(days=1)).dt.tz_convert('UTC')
     else:
         times=stamps.dt.tz_convert('UTC')+pd.Timedelta(minutes=interval)
-    if interval == 60 and not is_crypto(ticker):
+    if interval == 60 and not is_crypto(ticker) and equity_session != 'all':
         schedule=CALENDAR.schedule(start_date=stamps.iloc[0].date(),end_date=stamps.iloc[-1].date())
         closes={d.date():row.market_close for d,row in schedule.iterrows()}
         times=pd.Series([min(end,closes[pd.Timestamp(start).tz_convert('America/New_York').date()])

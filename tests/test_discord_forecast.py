@@ -93,6 +93,50 @@ class ForecastIntegrationTests(unittest.TestCase):
             self.assertEqual(len(history),21)
             self.assertEqual(history[-1]["temperature_paths"]["1.0"][0][-1],110.0)
             self.assertIsNone(history[-1]["actual"][-1])
+            self.assertEqual(tf['forecast_bars'],24)
+            self.assertEqual(len(tf['forecast_path']),24)
+            self.assertEqual(tf['forecast_path'][-1]['close'],tf['pred_end_close'])
+            self.assertEqual(tf['forecast_end_at'],tf['forecast_path'][-1]['timestamp'])
+            self.assertEqual(tf['forecast_available_at'],tf['forecast_path'][-1]['available_at'])
+            self.assertEqual(pd.Timestamp(tf['reference_available_at']),now)
+            self.assertEqual(tf['data_session'],'crypto_24_7')
+            self.assertEqual(len(tf['configuration_fingerprint']),64)
+            self.assertTrue(all(pd.Timestamp(row['available_at']) > pd.Timestamp(row['timestamp']) for row in tf['forecast_path']))
+
+    def test_equity_all_session_isolates_calibration_and_keeps_immutable_chart(self):
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import patch
+        from webui.calibration_store import series_key
+        now=pd.Timestamp('2026-11-12T15:00:00Z')
+        bars=pd.DataFrame({'timestamps':pd.date_range(end=now-pd.Timedelta(minutes=5),periods=400,freq='5min'),
+                           'open':100.,'high':102.,'low':99.,'close':100.,'volume':1.,'amount':100.})
+        calls=[]
+        class Feed:
+            def candles(self,ticker,interval,count,*,equity_session):
+                calls.append(equity_session)
+                return bars.copy(),{'provider_status':'DELAYED','data_session':'equity_all',
+                                    'session':'All available provider stock sessions', 'observed_hours':['04','09','16','19']}
+        class Predictor:
+            def predict_batch(self,**kw):
+                return [pd.DataFrame({'open':100.,'high':102.,'low':99.,'close':101.,'volume':1.,'amount':100.},index=kw['y_timestamp_list'][0]) for _ in range(5)]
+        old_key=series_key('SPY',5,400,5,'Kronos-small',signature='weights')
+        state={'version':1,'series':{old_key:[{'decision':'old'}]}}
+        with tempfile.TemporaryDirectory() as tmp, patch('scripts.run_discord_forecast.pd.Timestamp.now',return_value=now):
+            first=generate_ticker_forecast(Feed(),Predictor(),'SPY',[5],Path(tmp),400,'test',calibration_state=state,model_signature='weights')
+            before=Path(first['chart_path']).read_bytes()
+            second=generate_ticker_forecast(Feed(),Predictor(),'SPY',[5],Path(tmp),400,'test',calibration_state=state,model_signature='weights')
+            tf=first['timeframes'][0]
+            self.assertEqual(calls,['all','all'])
+            self.assertEqual(state['series'][old_key],[{'decision':'old'}])
+            self.assertEqual(len(state['series']),2)
+            self.assertEqual(tf['uncertainty_method'],'sample')
+            self.assertEqual(tf['provider_status'],'DELAYED')
+            self.assertEqual(tf['model_fingerprint'],'weights')
+            self.assertEqual(tf['data_session'],'equity_all')
+            self.assertEqual(tf['observed_hours'],['04','09','16','19'])
+            self.assertNotEqual(first['chart_path'],second['chart_path'])
+            self.assertEqual(Path(first['chart_path']).read_bytes(),before)
 
 
 

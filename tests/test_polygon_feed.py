@@ -153,3 +153,85 @@ def test_external_history_pagination_rejected(monkeypatch):
     monkeypatch.setattr(live.requests, 'get', lambda *args,**kwargs: SimpleNamespace(status_code=200,json=lambda:{'status':'OK','results':market_rows()[-100:],'next_url':'https://other.example/v2/aggs/ticker/SPY/range/page'}))
     with pytest.raises(live.FeedError, match='pagination URL'):
         live.PolygonFeed().candles('SPY',5,1000)
+
+
+def test_all_session_history_retains_actual_pre_and_post_market_without_fill():
+    timestamps = pd.to_datetime([
+        '2026-11-13T03:00:00-05:00', '2026-11-13T04:00:00-05:00',
+        '2026-11-13T09:30:00-05:00', '2026-11-13T16:00:00-05:00',
+        '2026-11-13T19:50:00-05:00', '2026-11-13T19:55:00-05:00',
+        '2026-11-14T10:00:00-05:00',
+    ])
+    rows = [dict(t=int(stamp.timestamp()*1000), o=100, h=102, l=99, c=101, v=10) for stamp in timestamps]
+    now = pd.Timestamp('2026-11-13T19:58:00-05:00')
+    df = live.normalize_bars(rows, 5, now, count=5, equity_session='all')
+    assert list(df.timestamps) == list(timestamps[:5])
+    assert len(df) == 5  # Missing hours are not synthesized or forward-filled.
+    info = live.metadata(df, 'SPY', 5, now, 'OK', now, 'all')
+    assert info['data_session'] == 'equity_all'
+    assert info['observed_hours'] == ['03', '04', '09', '16', '19']
+    assert 'not 24-hour' in info['session']
+
+
+def test_all_session_hourly_uses_provider_clock_bars_without_rth_resampling():
+    stamps = pd.date_range('2026-11-13T04:00:00-05:00', periods=16, freq='h')
+    rows = [dict(t=int(t.timestamp()*1000), o=100, h=102, l=99, c=101, v=10) for t in stamps]
+    df = live.normalize_bars(rows, 60, pd.Timestamp('2026-11-13T19:45:00-05:00'), count=15, equity_session='all')
+    assert list(df.timestamps) == list(stamps[:15])
+    assert live.provider_interval('SPY', 60, 'all') == (1, 'hour')
+    assert live.provider_interval('SPY', 60) == (30, 'minute')
+
+
+@pytest.mark.parametrize('last,interval,first', [
+    ('2026-11-13T19:55:00-05:00', 5, '2026-11-16T04:00:00-05:00'),
+    ('2026-11-13T19:00:00-05:00', 5, '2026-11-13T19:05:00-05:00'),
+    ('2026-11-27T16:55:00-05:00', 5, '2026-11-30T04:00:00-05:00'),
+    ('2026-10-30T19:55:00-04:00', 5, '2026-11-02T04:00:00-05:00'),
+    ('2026-07-02T19:55:00-04:00', 5, '2026-07-06T04:00:00-04:00'),
+    ('2026-11-13T19:00:00-05:00', 60, '2026-11-16T04:00:00-05:00'),
+])
+def test_all_session_forecast_calendar_holidays_weekends_early_close_and_dst(last, interval, first):
+    future = live.future_timestamps(last, interval, 24, 'SPY', 'all')
+    assert future.iloc[0] == pd.Timestamp(first)
+    assert len(future) == 24
+    assert future.dt.dayofweek.lt(5).all()
+    assert future.dt.hour.ge(4).all()
+
+
+def test_equity_session_cache_and_requests_are_separate(monkeypatch):
+    calls = []
+    monkeypatch.setattr(live, 'settings', lambda: ('test-private-key', 'https://api.polygon.io'))
+    monkeypatch.setattr(live.pd.Timestamp, 'now', lambda **kwargs: pd.Timestamp('2026-10-04T12:00:00Z'))
+    def get(url, **kwargs):
+        calls.append(url)
+        return SimpleNamespace(status_code=200, json=lambda: {'status':'OK', 'results':market_rows()})
+    monkeypatch.setattr(live.requests, 'get', get)
+    feed = live.PolygonFeed()
+    _, regular = feed.candles('SPY', 5)
+    _, all_session = feed.candles('SPY', 5, equity_session='all')
+    feed.candles('SPY', 5, equity_session='all')
+    assert len(calls) == 2
+    assert regular['data_session'] == 'equity_regular'
+    assert all_session['data_session'] == 'equity_all'
+
+
+def test_all_session_history_uses_et_date_after_utc_midnight():
+    stamps = pd.date_range('2026-11-13T19:00:00-05:00', periods=10, freq='5min')
+    rows = [dict(t=int(t.timestamp()*1000), o=100, h=102, l=99, c=101, v=10) for t in stamps]
+    df = live.normalize_bars(rows, 5, pd.Timestamp('2026-11-13T20:00:00-05:00'), count=10, equity_session='all')
+    assert list(df.timestamps) == list(stamps)
+
+
+def test_daily_provenance_preserves_provider_rules_in_both_session_modes():
+    stamp = pd.Timestamp('2026-11-13T00:00:00-05:00')
+    rows = [dict(t=int(stamp.timestamp()*1000), o=100, h=102, l=99, c=101, v=10)]
+    now = pd.Timestamp('2026-11-14T00:00:00-05:00')
+    normalized = []
+    for session in ('regular', 'all'):
+        df = live.normalize_bars(rows, 1440, now, count=1, equity_session=session)
+        info = live.metadata(df, 'SPY', 1440, now, 'OK', now, session)
+        assert info['data_session'] == 'equity_daily_provider'
+        assert info['session'] == 'Provider daily stock bars; completed ET days; provider daily aggregation rules'
+        assert live.provider_interval('SPY', 1440, session) == (1, 'day')
+        normalized.append(df)
+    pd.testing.assert_frame_equal(*normalized)

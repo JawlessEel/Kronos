@@ -21,6 +21,8 @@ If `kronos` already exists, inspect its `git status` before pulling; do not clon
 
 ## Data and private configuration
 
+For TITAN's scheduled SPY/BTC charts, see [Discord forecast sessions and accountability payload](docs/discord-forecasts.md). It documents all-available stock input, extended-session forecast calendars, immutable charts, and exact outcome timestamps.
+
 Use Finder to copy your historical CSV files into `data/` (create that directory if absent). Git excludes data, models, `.venv`, caches, and generated outputs. They are not shipped by a Git push. You can copy the five `models/Kronos-*` folders from Windows instead of downloading them again. `verify_setup.py` requires the historical sample `data/HK_ali_09988_kline_5min_all.csv` that is present on the Windows installation.
 
 Create `.env` in the checkout using a text editor. Put your Polygon key in `POLYGON_API_KEY`; use `.env.example` for names, never commit the populated file. The browser/phone never receives that key. Subscription freshness limits still apply.

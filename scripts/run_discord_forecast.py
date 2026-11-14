@@ -4,11 +4,13 @@ EMA63/EMA200 charts for Discord delivery."""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import matplotlib
 matplotlib.use("Agg")
@@ -273,6 +275,7 @@ def generate_ticker_forecast(
     model_name: str = "Kronos-small",
     tokenizer_name: str = "Kronos-Tokenizer-base",
     model_signature: str = "unverified",
+    equity_session: str = "all",
 ) -> dict[str, Any]:
     fig, axes = plt.subplots(2, 2, figsize=(16, 10), dpi=150)
     fig.patch.set_facecolor("#0d1117")
@@ -284,18 +287,27 @@ def generate_ticker_forecast(
         fetch_count = lookback
         if calibration_state is not None and is_crypto(ticker):
             fetch_count = max(lookback, 2000 if interval == 5 else 800 if interval == 15 else lookback)
-        all_history, info = feed.candles(ticker, interval, count=fetch_count)
+        feed_kwargs = {} if is_crypto(ticker) else {"equity_session": equity_session}
+        all_history, info = feed.candles(ticker, interval, count=fetch_count, **feed_kwargs)
         model_df = all_history.tail(lookback).reset_index(drop=True)
         hist_df = model_df
         decision = pd.Timestamp.now(tz="UTC")
         records = None
         fit = {"ready": False, "endpoint_count": 0}
         if calibration_state is not None:
-            key = series_key(ticker, interval, lookback, sample_count, model_name, tokenizer_name, model_signature)
+            # A changed equity session also changes candle alignment/horizons.
+            # RTH residuals must never calibrate the new all-session series.
+            calibration_signature = (f"{model_signature}:equity-all-v1"
+                                     if not is_crypto(ticker) and interval != 1440 and equity_session == "all"
+                                     else model_signature)
+            key = series_key(ticker, interval, lookback, sample_count, model_name, tokenizer_name, calibration_signature)
             records = calibration_state["series"].setdefault(key, [])
             update_actuals(records, all_history)
             fit = calibrate_forecast(records, decision, temperature, pred_len, fixed_weight=model_weight)
-        future = future_timestamps(hist_df["timestamps"].iloc[-1], interval, pred_len, ticker)
+        future = future_timestamps(hist_df["timestamps"].iloc[-1], interval, pred_len, ticker, equity_session)
+        available = future_availability(future, ticker, interval, equity_session)
+        if pd.Timestamp(available[-1]) <= decision:
+            raise RuntimeError(f"{ticker} {interval}m history is too stale for a future forecast horizon")
         paths = predictor.predict_batch(
             df_list=[model_df.drop(columns="timestamps")] * sample_count,
             x_timestamp_list=[model_df["timestamps"]] * sample_count,
@@ -305,6 +317,8 @@ def generate_ticker_forecast(
         )
         if len(paths) != sample_count:
             raise RuntimeError("Model returned an incomplete forecast-path batch")
+        if any(not pd.DatetimeIndex(path.index).equals(pd.DatetimeIndex(future)) for path in paths):
+            raise RuntimeError("Model returned timestamps that do not match the forecast calendar")
         pred_df, sample_low, sample_high = aggregate_forecast_paths(paths)
         pred_df, band_low, band_high, effective_weight, method = adjust_forecast(
             pred_df, sample_low, sample_high, float(model_df.close.iloc[-1]), fit)
@@ -317,10 +331,38 @@ def generate_ticker_forecast(
         if records is not None:
             record = {"decision": decision.isoformat(), "asof": model_df.timestamps.iloc[-1].isoformat(),
                       "start": float(model_df.close.iloc[-1]), "future": [pd.Timestamp(t).isoformat() for t in future],
-                      "available": future_availability(future, ticker, interval), "actual": [None] * pred_len,
+                      "available": available, "actual": [None] * pred_len,
                       "temperature_paths": {str(float(temperature)): [p.close.astype(float).tolist() for p in paths]}}
             append_forecast(records, record)
         panel_summary["provider_status"] = info.get("provider_status") or "UNKNOWN"
+        panel_summary.update({
+            "reference_at": pd.Timestamp(hist_df.timestamps.iloc[-1]).isoformat(),
+            "reference_available_at": future_availability(hist_df.timestamps.tail(1), ticker, interval, equity_session)[0],
+            "decision_at": decision.isoformat(),
+            "forecast_end_at": pd.Timestamp(future.iloc[-1]).isoformat(),
+            "forecast_available_at": available[-1],
+            "forecast_bars": pred_len,
+            "data_session": info.get("data_session", "crypto_24_7" if is_crypto(ticker) else "equity_daily_provider" if interval == 1440 else f"equity_{equity_session}"),
+            "session_description": info.get("session", ""),
+            "observed_hours": info.get("observed_hours", []),
+            "provider_timezone": info.get("timezone", "UTC" if is_crypto(ticker) else "America/New_York"),
+            "provider": info.get("provider", "Polygon/Massive REST aggregates"),
+            "history_start_at": pd.Timestamp(hist_df.timestamps.iloc[0]).isoformat(),
+            "model_fingerprint": model_signature,
+            "configuration_fingerprint": hashlib.sha256(json.dumps({
+                "ticker": ticker, "interval": interval, "lookback": lookback,
+                "samples": sample_count, "temperature": temperature,
+                "configured_model_weight": model_weight, "effective_model_weight": effective_weight,
+                "equity_session": equity_session if not is_crypto(ticker) else "crypto_24_7",
+                "model": model_name, "tokenizer": tokenizer_name, "signature": model_signature,
+            }, sort_keys=True).encode()).hexdigest(),
+            "forecast_path": [
+                {"timestamp": pd.Timestamp(stamp).isoformat(), "available_at": available[j],
+                 **{col: round(float(pred_df.iloc[j][col]), 4) for col in ("open", "high", "low", "close")},
+                 "band_lower": round(float(band_low[j]), 4), "band_upper": round(float(band_high[j]), 4)}
+                for j, stamp in enumerate(future)
+            ],
+        })
         summaries.append(panel_summary)
 
     now_et = pd.Timestamp.now(tz="America/New_York")
@@ -344,7 +386,9 @@ def generate_ticker_forecast(
 
     out_dir.mkdir(parents=True, exist_ok=True)
     safe_name = disp.replace(":", "-")
-    chart_path = out_dir / f"{safe_name}_kronos_multi_tf.png"
+    # The delivery ledger retains this exact artifact across pre-send retries.
+    # A later inference must not overwrite an earlier forecast's chart.
+    chart_path = out_dir / f"{safe_name}_kronos_multi_tf_{uuid4().hex}.png"
     fig.savefig(chart_path, facecolor=fig.get_facecolor(), edgecolor="none")
     plt.close(fig)
 
@@ -364,6 +408,7 @@ def main() -> int:
     parser.add_argument("--samples", type=int, default=5, help="Independent model paths (2–20)")
     parser.add_argument("--temperature", type=float, default=1.0, help="Sampling temperature (0.1–2)")
     parser.add_argument("--model-weight", type=float, default=0.25, help="Model weight in blend with last close (0–1; applied when calibration is ready)")
+    parser.add_argument("--equity-session", choices=("regular", "all"), default="all", help="Equity history: all available provider sessions (default) or regular hours only; never invents overnight data")
     parser.add_argument("--calibration-state", type=Path, default=None, help="Optional local outcome-history state file")
     parser.add_argument("--slot", default="Scheduled", help="Schedule slot label")
     parser.add_argument("--model-dir", default=str(ROOT / "models" / "Kronos-small"), help="Kronos model path")
@@ -373,7 +418,7 @@ def main() -> int:
     if not 2 <= args.samples <= 20 or not np.isfinite(args.temperature) or not 0.1 <= args.temperature <= 2 or not np.isfinite(args.model_weight) or not 0 <= args.model_weight <= 1:
         parser.error("samples must be 2–20, temperature 0.1–2 and model weight 0–1")
     calibration_state = load_calibration(args.calibration_state) if args.calibration_state else None
-    model_signature = artifact_signature(Path(args.model_dir), Path(args.tokenizer_dir)) if calibration_state is not None else "unverified"
+    model_signature = artifact_signature(Path(args.model_dir), Path(args.tokenizer_dir))
 
     tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
     intervals = [int(x.strip()) for x in args.intervals.split(",") if x.strip()]
@@ -400,6 +445,7 @@ def main() -> int:
                 model_name=Path(args.model_dir).name,
                 tokenizer_name=Path(args.tokenizer_dir).name,
                 model_signature=model_signature,
+                equity_session=args.equity_session,
             )
         )
 
@@ -414,6 +460,15 @@ def main() -> int:
         "sample_count": args.samples,
         "temperature": args.temperature,
         "configured_model_weight": args.model_weight,
+        "equity_session": args.equity_session,
+        "provider": "Polygon/Massive REST aggregates",
+        "model_fingerprint": model_signature,
+        "configuration_fingerprint": hashlib.sha256(json.dumps({
+            "tickers": tickers, "intervals": intervals, "lookback": max(args.lookback, 250),
+            "samples": args.samples, "temperature": args.temperature,
+            "model_weight": args.model_weight, "equity_session": args.equity_session,
+            "model_signature": model_signature,
+        }, sort_keys=True).encode()).hexdigest(),
         "slot": args.slot,
         "results": results,
     }

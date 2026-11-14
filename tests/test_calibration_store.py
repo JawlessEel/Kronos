@@ -42,6 +42,12 @@ class CalibrationStoreTests(unittest.TestCase):
         day=pd.Series(pd.to_datetime(["2026-11-27T00:00:00-05:00"]))
         self.assertEqual(pd.Timestamp(future_availability(day,"SPY",1440)[0]),pd.Timestamp("2026-11-28T00:00:00-05:00"))
 
+    def test_all_session_hourly_availability_does_not_clamp_to_regular_close(self):
+        future=pd.Series(pd.to_datetime(["2026-11-27T16:00:00-05:00"]))
+        self.assertEqual(pd.Timestamp(future_availability(future,"SPY",60,'all')[0]),pd.Timestamp("2026-11-27T17:00:00-05:00"))
+        day=pd.Series(pd.to_datetime(["2026-11-27T00:00:00-05:00"]))
+        self.assertEqual(pd.Timestamp(future_availability(day,"SPY",1440,'all')[0]),pd.Timestamp("2026-11-28T00:00:00-05:00"))
+
     def test_append_dedup_and_bounded(self):
         rows=[]
         for i in range(3): append_forecast(rows,{'decision':str(i)},limit=2)
