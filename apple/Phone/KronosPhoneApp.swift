@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main struct KronosPhoneApp: App {
-    var body: some Scene { WindowGroup { PhoneView() } }
+    var body: some Scene { WindowGroup { PhoneView().preferredColorScheme(.dark) } }
 }
 struct PhoneView: View {
     @AppStorage("serverAddress") private var address=""
@@ -15,6 +15,7 @@ struct PhoneView: View {
     @State private var busy=false
     @State private var catalog:ModelCatalog?
     @State private var device="cpu"
+    @State private var confirmGenerate=false
     @StateObject private var bridge=WatchBridge.shared
     private var symbols:[String] {Array(Set(watchlist.uppercased().split(separator:",").map{String($0).trimmingCharacters(in:.whitespaces)})).filter{!$0.isEmpty}.sorted()}
     func perform(_ operation:@escaping ()async throws->Void) {
@@ -56,11 +57,15 @@ struct PhoneView: View {
                         Button("Load selected server model"){perform{let client=try KronosClient(address:address);_ = try await client.call("/api/load-model",body:["model_key":model,"device":device]);status="Model loaded."}}
                     }
                     Button("Read saved today forecast"){perform{try await refresh(KronosClient(address:address))}}
-                    Button("Generate forecast through today's close"){perform{
-                        let client=try KronosClient(address:address)
-                        _ = try await client.call("/api/live/predict",body:["ticker":symbol,"interval":interval,"lookback":400,"history":1000,"pred_len":30,"target_today":true,"temperature":0.6,"top_p":0.9,"sample_count":1])
-                        try await refresh(client)
-                    }}
+                    Button("Generate forecast through today's close"){confirmGenerate=true}
+                    .confirmationDialog("Run the Kronos model on the Mac mini now?",isPresented:$confirmGenerate,titleVisibility:.visible){
+                        Button("Generate for \(symbol)"){perform{
+                            let client=try KronosClient(address:address)
+                            _ = try await client.call("/api/live/predict",body:["ticker":symbol,"interval":interval,"lookback":400,"history":1000,"pred_len":30,"target_today":true,"temperature":0.6,"top_p":0.9,"sample_count":1])
+                            try await refresh(client)
+                        }}
+                        Button("Cancel",role:.cancel){}
+                    } message: {Text("This uses the Mac's GPU for up to a few minutes. It only forecasts; nothing is traded.")}
                     if busy {ProgressView("Working on the Mac mini…")}
                     Text(status).font(.caption)
                     TimelineView(.periodic(from:.now,by:60)){context in
@@ -72,6 +77,7 @@ struct PhoneView: View {
                                     HStack {Text("Pred H \(value.predicted_high!,specifier:"%.2f")");Spacer();Text("Pred L \(value.predicted_low!,specifier:"%.2f")")}.monospacedDigit()
                                     Text("Solid: observed · Dashed: predicted · Times: New York").font(.caption2)
                                 }
+                                ForecastExplainerCard(snapshot:value,now:context.date).padding(.top,4)
                             }
                         }
                     }

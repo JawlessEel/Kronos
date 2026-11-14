@@ -7,3 +7,5 @@
 2026-10-16 · Antigravity · Fixed 3R page PDF export clone selector and Options Chain table-over-news PDF layout overlap
 2026-10-17 · Claude · Branch Claudes_upgrades: forecast-first layout with sticky nav/sidebar, pytest/Node check runner + CI, data-dir path guard, localhost-only legacy launchers (docs/CLAUDES_UPGRADES.md)
 2026-10-17 · Claude · Testing Lab: startup auto-runs (7 SPY setups, walk-forward backtest) and manual runs now skip with a 'model/dataset not installed' status when /api/testing/overview (new registered_model_keys, datasets, live_feed fields) says the checkpoint or CSV is absent; no 4xx on page load without finetuned SPY models
+
+2026-11-13 · Claude Code · Apple: plain-language forecast explainer + scenarios, on-device Foundation Models rewrite, Siri "Explain my Kronos forecast", confirm before generating, dark theme, kronos-apple-worker agent.

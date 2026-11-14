@@ -48,3 +48,12 @@ Build/run KronosPhone on the iPhone, then KronosWatch on its paired Watch. On th
 `GET /api/live/watch-summary?ticker=SPY&interval=5` reads saved output only. Version 1 includes `status`, `reason`, `session_date`, `market_close`, `generated_at`, `expires_at`, `predicted_high`, `predicted_low`, `high_time`, `low_time`, observed/predicted timestamp-close points, and `quality_count`. Only `ready` with a valid expiry is displayable as a forecast number. Both APIs retain the dashboard's existing session authentication and POST Origin checks.
 
 Before declaring the Apple stage complete, verify both simulator builds, signed device builds, login failure/session expiry, offline/expired state, paired transfer, high/low selection, and Modular Middle layout. Verify real Mac inference separately.
+
+## Forecast explainer (added 2026-11-13)
+
+Under the chart, Kronos Today now explains the saved forecast in plain words: direction into the close, last price vs predicted range (tight / normal / wide spread), time left in the session, when the forecast goes stale, quality flags, and three scenarios (follows the path, upside touch, downside dip) with the predicted times. It is read-only and always labelled as a single-sample model estimate, not advice.
+
+- On iOS 26 with Apple Intelligence on, **Say it simply** rewrites the explanation with Apple's on-device model; otherwise the built-in text is used.
+- Siri / Shortcuts: "Explain my Kronos forecast" reads the latest saved forecast. It never runs the model.
+- **Generate forecast** now asks for confirmation first because it uses the Mac's GPU.
+- Claude Code worker agent: `../.claude/agents/kronos-apple-worker.md`.
